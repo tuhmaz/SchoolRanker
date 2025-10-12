@@ -5,8 +5,9 @@ export interface Student {
   name: string;
   class: string;
   division: string;
-  gender?: string;
+  nationalId?: string;
   birthDate?: string;
+  status?: string;
 }
 
 export interface ParsedData {
@@ -21,7 +22,7 @@ export interface ParsedData {
   }[];
 }
 
-export async function parseExcelFile(file: File): Promise<ParsedData> {
+export async function parseMinistryFile(file: File): Promise<ParsedData> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
 
@@ -31,59 +32,142 @@ export async function parseExcelFile(file: File): Promise<ParsedData> {
         const workbook = XLSX.read(data, { type: 'binary' });
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
-        const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet);
+        
+        // Parse as array to preserve structure
+        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as any[][];
 
-        if (jsonData.length === 0) {
-          reject(new Error('الملف فارغ أو لا يحتوي على بيانات'));
+        // Extract class and division
+        let className = '';
+        let division = '';
+        
+        for (let i = 0; i < Math.min(rows.length, 20); i++) {
+          const row = rows[i];
+          
+          // Find class (الصف) - the value is usually before the label
+          const classIndex = row.findIndex((cell: any) => 
+            cell && String(cell).trim() === 'الصف'
+          );
+          if (classIndex !== -1) {
+            // Look for the value before the colon
+            for (let j = classIndex - 1; j >= 0; j--) {
+              if (row[j] && String(row[j]).trim() !== '' && String(row[j]).trim() !== ':') {
+                className = String(row[j]).trim();
+                break;
+              }
+            }
+          }
+          
+          // Find division (الشعبة) in the same way
+          const divisionIndex = row.findIndex((cell: any) => 
+            cell && String(cell).trim() === 'الشعبة'
+          );
+          if (divisionIndex !== -1 && divisionIndex < 15) { // Make sure it's in the header, not in the table
+            for (let j = divisionIndex - 1; j >= 0; j--) {
+              if (row[j] && String(row[j]).trim() !== '' && String(row[j]).trim() !== ':') {
+                division = String(row[j]).trim();
+                break;
+              }
+            }
+          }
+        }
+
+        // Find header row (contains "اسم الطالب")
+        let headerRowIndex = -1;
+        let nameColumnIndex = -1;
+        let divisionColumnIndex = -1;
+        let nationalIdColumnIndex = -1;
+        let birthDateColumnIndex = -1;
+        let statusColumnIndex = -1;
+
+        for (let i = 0; i < rows.length; i++) {
+          const row = rows[i];
+          
+          const nameIdx = row.findIndex((cell: any) => 
+            cell && String(cell).includes('اسم الطالب')
+          );
+          
+          if (nameIdx !== -1) {
+            headerRowIndex = i;
+            nameColumnIndex = nameIdx;
+            
+            // Find other columns
+            divisionColumnIndex = row.findIndex((cell: any) => cell && String(cell).trim() === 'الشعبة');
+            nationalIdColumnIndex = row.findIndex((cell: any) => cell && String(cell).includes('رقم الإثبات'));
+            birthDateColumnIndex = row.findIndex((cell: any) => cell && String(cell).includes('تاريخ الميلاد'));
+            statusColumnIndex = row.findIndex((cell: any) => cell && String(cell).includes('حالة القيد'));
+            break;
+          }
+        }
+
+        if (headerRowIndex === -1 || nameColumnIndex === -1) {
+          reject(new Error('لم يتم العثور على بيانات الطلبة في الملف. تأكد من أن الملف من منصة أجيال.'));
           return;
         }
 
-        // Extract students data
-        const students: Student[] = jsonData.map((row, index) => {
-          // Try different possible column names from Ajyal platform
-          const name = row['اسم الطالب'] || row['الاسم'] || row['Student Name'] || row['Name'] || '';
-          const className = row['الصف'] || row['Class'] || row['الصف الدراسي'] || '';
-          const division = row['الشعبة'] || row['Division'] || row['الشعبة الدراسية'] || '';
-          const gender = row['الجنس'] || row['Gender'] || '';
-          const birthDate = row['تاريخ الميلاد'] || row['Birth Date'] || '';
+        if (!className) {
+          reject(new Error('لم يتم العثور على اسم الصف في الملف. تأكد من أن الملف من منصة أجيال.'));
+          return;
+        }
 
-          return {
-            id: `student-${index + 1}`,
-            name: String(name).trim(),
-            class: String(className).trim(),
-            division: String(division).trim(),
-            gender: String(gender).trim(),
-            birthDate: String(birthDate).trim(),
+        // Extract students
+        const students: Student[] = [];
+        const classMap = new Map<string, Set<string>>();
+
+        for (let i = headerRowIndex + 1; i < rows.length; i++) {
+          const row = rows[i];
+          
+          const studentName = row[nameColumnIndex] ? String(row[nameColumnIndex]).trim() : '';
+          if (!studentName) continue;
+
+          // Get division from row if available, otherwise use extracted division
+          let studentDivision = division;
+          if (divisionColumnIndex !== -1 && row[divisionColumnIndex]) {
+            const divValue = String(row[divisionColumnIndex]).trim();
+            if (divValue) {
+              studentDivision = divValue;
+            }
+          }
+
+          const student: Student = {
+            id: `student-${i - headerRowIndex}`,
+            name: studentName,
+            class: className,
+            division: studentDivision,
+            nationalId: nationalIdColumnIndex !== -1 ? String(row[nationalIdColumnIndex] || '').trim() : '',
+            birthDate: birthDateColumnIndex !== -1 ? String(row[birthDateColumnIndex] || '').trim() : '',
+            status: statusColumnIndex !== -1 ? String(row[statusColumnIndex] || '').trim() : '',
           };
-        }).filter(s => s.name && s.class && s.division); // Filter out invalid rows
 
-        // Group by class and division
-        const classMap = new Map<string, Map<string, Student[]>>();
+          students.push(student);
 
-        students.forEach(student => {
-          if (!classMap.has(student.class)) {
-            classMap.set(student.class, new Map());
+          // Track classes and divisions
+          if (className && studentDivision) {
+            if (!classMap.has(className)) {
+              classMap.set(className, new Set());
+            }
+            classMap.get(className)!.add(studentDivision);
           }
-          const divisionMap = classMap.get(student.class)!;
-          if (!divisionMap.has(student.division)) {
-            divisionMap.set(student.division, []);
-          }
-          divisionMap.get(student.division)!.push(student);
-        });
+        }
+
+        if (students.length === 0) {
+          reject(new Error('لم يتم العثور على أي طلبة في الملف'));
+          return;
+        }
 
         // Build classes structure
-        const classes = Array.from(classMap.entries()).map(([className, divisionMap]) => ({
+        const classes = Array.from(classMap.entries()).map(([className, divisionSet]) => ({
           className,
-          divisions: Array.from(divisionMap.entries()).map(([division, _]) => ({
+          divisions: Array.from(divisionSet).map(division => ({
             id: `${className}-${division}`,
             division,
-            subjects: [{ id: `subject-${className}-${division}-1`, name: '' }]
+            subjects: [] as { id: string; name: string }[]
           }))
         }));
 
         resolve({ students, classes });
-      } catch (error) {
-        reject(new Error('خطأ في قراءة الملف. تأكد من أن الملف بصيغة Excel صحيحة'));
+      } catch (error: any) {
+        console.error('Error parsing Excel:', error);
+        reject(new Error('خطأ في قراءة الملف. تأكد من أن الملف بصيغة Excel صحيحة من منصة أجيال'));
       }
     };
 
@@ -94,3 +178,6 @@ export async function parseExcelFile(file: File): Promise<ParsedData> {
     reader.readAsBinaryString(file);
   });
 }
+
+// Legacy function for backward compatibility
+export const parseExcelFile = parseMinistryFile;

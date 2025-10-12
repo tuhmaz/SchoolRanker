@@ -233,7 +233,11 @@ export default function Settings() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ClassSubjectManager classes={classes} onUpdate={setClasses} />
+          <ClassSubjectManager 
+            classes={classes} 
+            onUpdate={setClasses} 
+            students={parsedData?.students || []}
+          />
         </CardContent>
       </Card>
 
