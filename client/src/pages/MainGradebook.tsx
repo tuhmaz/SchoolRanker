@@ -14,7 +14,7 @@ export default function MainGradebook() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" dir="rtl">
       <div>
         <h1 className="text-3xl font-bold text-foreground">إنشاء دفتر علامات رئيسي</h1>
         <p className="text-muted-foreground mt-2">

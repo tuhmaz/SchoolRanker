@@ -33,7 +33,7 @@ export default function Attendance() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" dir="rtl">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">دفتر حضور وغياب</h1>

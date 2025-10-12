@@ -7,31 +7,63 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FileUploadZone } from "@/components/FileUploadZone";
 import { ClassSubjectManager } from "@/components/ClassSubjectManager";
+import { LoadingOverlay } from "@/components/LoadingOverlay";
 import { Save, RefreshCcw, Printer } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { parseExcelFile, type ParsedData } from "@/lib/excelParser";
 
 export default function Settings() {
   const { toast } = useToast();
   const [file, setFile] = useState<File | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [teacherName, setTeacherName] = useState("");
   const [directorate, setDirectorate] = useState("");
   const [school, setSchool] = useState("");
   const [town, setTown] = useState("");
   const [isHomeroom, setIsHomeroom] = useState(false);
   const [homeroomClass, setHomeroomClass] = useState("");
-  
-  // Mock data - will be replaced with actual Excel parsing
-  const [classes, setClasses] = useState([
-    {
-      className: "الصف السابع",
-      divisions: [
-        { id: "7a", division: "أ", subjects: [{ id: "1", name: "الرياضيات" }] },
-        { id: "7b", division: "ب", subjects: [{ id: "2", name: "العلوم" }] }
-      ]
+  const [parsedData, setParsedData] = useState<ParsedData | null>(null);
+  const [classes, setClasses] = useState<any[]>([]);
+
+  const handleFileSelect = async (selectedFile: File) => {
+    setFile(selectedFile);
+    setIsProcessing(true);
+
+    try {
+      const data = await parseExcelFile(selectedFile);
+      setParsedData(data);
+      setClasses(data.classes);
+      
+      toast({
+        title: "تم التحميل بنجاح",
+        description: `تم استخلاص ${data.students.length} طالب/ة من ${data.classes.length} صف`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "خطأ في معالجة الملف",
+        description: error.message || "حدث خطأ أثناء قراءة الملف",
+        variant: "destructive",
+      });
+      setFile(null);
+    } finally {
+      setIsProcessing(false);
     }
-  ]);
+  };
 
   const handleSave = () => {
+    const settings = {
+      teacherName,
+      directorate,
+      school,
+      town,
+      isHomeroom,
+      homeroomClass,
+      classes,
+      students: parsedData?.students || []
+    };
+    
+    localStorage.setItem('appSettings', JSON.stringify(settings));
+    
     toast({
       title: "تم الحفظ بنجاح",
       description: "تم حفظ جميع التجهيزات",
@@ -48,6 +80,9 @@ export default function Settings() {
       setIsHomeroom(false);
       setHomeroomClass("");
       setClasses([]);
+      setParsedData(null);
+      localStorage.removeItem('appSettings');
+      
       toast({
         title: "تم المسح",
         description: "تم مسح جميع التجهيزات",
@@ -62,8 +97,17 @@ export default function Settings() {
     });
   };
 
+  const availableClasses = classes.flatMap(classGroup =>
+    classGroup.divisions.map((div: any) => ({
+      id: div.id,
+      label: `${classGroup.className} - ${div.division}`
+    }))
+  );
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" dir="rtl">
+      {isProcessing && <LoadingOverlay message="جاري معالجة الملف..." />}
+      
       <div>
         <h1 className="text-3xl font-bold text-foreground">التجهيزات الأساسية</h1>
         <p className="text-muted-foreground mt-2">
@@ -74,14 +118,28 @@ export default function Settings() {
       <Card>
         <CardHeader>
           <CardTitle>رفع ملف الطلبة</CardTitle>
-          <CardDescription>قم برفع كشف الطلبة من منصة أجيال</CardDescription>
+          <CardDescription>قم برفع كشف الطلبة من منصة أجيال (Excel)</CardDescription>
         </CardHeader>
         <CardContent>
           <FileUploadZone
-            onFileSelect={setFile}
+            onFileSelect={handleFileSelect}
             selectedFile={file}
-            onClearFile={() => setFile(null)}
+            onClearFile={() => {
+              setFile(null);
+              setClasses([]);
+              setParsedData(null);
+            }}
           />
+          {parsedData && (
+            <div className="mt-4 p-3 bg-chart-1/10 border border-chart-1/20 rounded-lg">
+              <div className="flex items-center gap-2 text-chart-1">
+                <i className="fas fa-check-circle"></i>
+                <span className="font-medium">
+                  تم استخلاص {parsedData.students.length} طالب/ة من {parsedData.classes.length} صف
+                </span>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -147,7 +205,7 @@ export default function Settings() {
             />
           </div>
 
-          {isHomeroom && (
+          {isHomeroom && availableClasses.length > 0 && (
             <div className="space-y-2">
               <Label htmlFor="homeroom-class">اختر صفك</Label>
               <Select value={homeroomClass} onValueChange={setHomeroomClass}>
@@ -155,8 +213,11 @@ export default function Settings() {
                   <SelectValue placeholder="اختر صفك..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="7a">الصف السابع - أ</SelectItem>
-                  <SelectItem value="7b">الصف السابع - ب</SelectItem>
+                  {availableClasses.map(cls => (
+                    <SelectItem key={cls.id} value={cls.id}>
+                      {cls.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -167,6 +228,9 @@ export default function Settings() {
       <Card>
         <CardHeader>
           <CardTitle>الصفوف والمواد</CardTitle>
+          <CardDescription>
+            {classes.length === 0 ? "سيتم عرض الصفوف بعد رفع ملف الطلبة" : "أضف المواد الدراسية لكل صف وشعبة"}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <ClassSubjectManager classes={classes} onUpdate={setClasses} />
@@ -174,7 +238,7 @@ export default function Settings() {
       </Card>
 
       <div className="flex flex-wrap gap-3">
-        <Button onClick={handleSave} data-testid="button-save">
+        <Button onClick={handleSave} disabled={!file || classes.length === 0} data-testid="button-save">
           <Save className="w-4 h-4 ml-2" />
           حفظ التجهيزات
         </Button>
@@ -182,7 +246,7 @@ export default function Settings() {
           <RefreshCcw className="w-4 h-4 ml-2" />
           إعادة تعيين
         </Button>
-        <Button variant="secondary" onClick={handlePrintCover} data-testid="button-print-cover">
+        <Button variant="secondary" onClick={handlePrintCover} disabled={!teacherName || !school} data-testid="button-print-cover">
           <Printer className="w-4 h-4 ml-2" />
           طباعة الغلاف
         </Button>
