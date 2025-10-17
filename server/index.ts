@@ -1,8 +1,39 @@
 import express, { type Request, Response, NextFunction } from "express";
+import { createServer as createHttpServer } from "http";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
+app.set("trust proxy", 1);
+
+const allowedOrigins = new Set([
+  "http://localhost:3000",
+  "http://localhost:5000",
+  "http://localhost:5173",
+  "https://khadmatak.com",
+  "http://khadmatak.com",
+]);
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.has(origin)) {
+    res.header("Access-Control-Allow-Origin", origin);
+    res.header("Access-Control-Allow-Credentials", "true");
+  }
+  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, X-Requested-With"
+  );
+
+  if (req.method === "OPTIONS") {
+    res.sendStatus(204);
+    return;
+  }
+
+  next();
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -37,7 +68,10 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  log("Starting application...");
+  log(`Environment: ${process.env.NODE_ENV || "development"}`);
   const server = await registerRoutes(app);
+  log("Routes registered successfully");
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -56,15 +90,54 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
-    port,
-    host: "127.0.0.1",
-  }, () => {
-    log(`serving on port ${port}`);
+  const preferredPort = parseInt(
+    process.env.PORT ||
+      process.env.PLESK_NODE_PORT ||
+      process.env.APP_PORT ||
+      "5000",
+    10
+  );
+  const host = process.env.HOST || "0.0.0.0";
+  log(`Preferred port: ${preferredPort}, Host: ${host}`);
+
+  const findAvailablePort = (startPort: number): Promise<number> => {
+    return new Promise((resolve) => {
+      const testServer = createHttpServer();
+      testServer.listen(startPort, host, () => {
+        const addr = testServer.address();
+        const port = typeof addr === "object" && addr !== null ? addr.port : startPort;
+        testServer.close(() => resolve(port));
+      });
+      testServer.on("error", (err: any) => {
+        if (err.code === "EADDRINUSE") {
+          resolve(findAvailablePort(startPort + 1));
+        } else {
+          resolve(startPort);
+        }
+      });
+    });
+  };
+
+  const port = await findAvailablePort(preferredPort);
+  log(`Found available port: ${port}`);
+  
+  server.listen(
+    {
+      port,
+      host,
+    },
+    () => {
+      if (port !== preferredPort) {
+        log(`preferred port ${preferredPort} in use, using ${port} instead`);
+      }
+      log(`✓ Server is running on http://${host}:${port}`);
+    }
+  );
+  
+  server.on("error", (err: any) => {
+    log(`Server error: ${err.message}`);
   });
-})();
+})().catch((err) => {
+  log(`Fatal error: ${err.message}`);
+  process.exit(1);
+});
