@@ -3,6 +3,10 @@ import * as XLSX from 'xlsx';
 export interface Student {
   id: string;
   name: string;
+  firstName?: string;
+  fatherName?: string;
+  grandName?: string;
+  familyName?: string;
   class: string;
   division: string;
   nationalId?: string;
@@ -20,6 +24,33 @@ export interface ParsedData {
       subjects: { id: string; name: string }[];
     }[];
   }[];
+  sheets?: {
+    sheetName: string;
+    className: string;
+    division: string;
+    subject?: string;
+    students: Student[];
+  }[];
+}
+
+/**
+ * تقسيم الاسم الكامل إلى أجزاء
+ * مثال: "ادم محي الدين علي موسى" => 
+ * { first: "ادم", father: "محي", grand: "الدين", family: "علي موسى" }
+ */
+function parseFullName(fullName: string) {
+  if (!fullName || typeof fullName !== 'string') {
+    return { first: '', father: '', grand: '', family: '' };
+  }
+  
+  const parts = fullName.trim().split(/\s+/);
+  
+  return {
+    first: parts[0] || '',
+    father: parts[1] || '',
+    grand: parts[2] || '',
+    family: parts.slice(3).join(' ') || ''
+  };
 }
 
 export async function parseMinistryFile(file: File): Promise<ParsedData> {
@@ -28,156 +59,233 @@ export async function parseMinistryFile(file: File): Promise<ParsedData> {
 
     reader.onload = (e) => {
       try {
-        const data = e.target?.result;
-        const workbook = XLSX.read(data, { type: 'binary' });
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-        
-        // Parse as array to preserve structure
-        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as any[][];
+        const data = e.target?.result as string | ArrayBuffer | null;
+        const workbook = XLSX.read(data as string, { type: 'binary' });
 
-        // Extract class and division
-        let className = '';
-        let division = '';
-        
-        for (let i = 0; i < Math.min(rows.length, 20); i++) {
-          const row = rows[i];
-          
-          // Find class (الصف) - the value is usually before the label
-          const classIndex = row.findIndex((cell: any) => 
-            cell && String(cell).trim() === 'الصف'
-          );
-          if (classIndex !== -1) {
-            // Look for the value before the colon
-            for (let j = classIndex - 1; j >= 0; j--) {
-              if (row[j] && String(row[j]).trim() !== '' && String(row[j]).trim() !== ':') {
-                className = String(row[j]).trim();
-                break;
+        const allStudents: Student[] = [];
+        const sheetResults: NonNullable<ParsedData["sheets"]> = [];
+        const classMap = new Map<string, Map<string, Set<string>>>(); // class -> division -> subjects
+
+        let fallbackClassName = '';
+        for (const sheetName of workbook.SheetNames) {
+          const worksheet = workbook.Sheets[sheetName];
+          const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as any[][];
+
+          // Prefer fixed positions used in ministry exports
+          let className = rows[6]?.[3] ? String(rows[6][3]).trim() : '';
+          let division = rows[14]?.[3] ? String(rows[14][3]).trim() : '';
+          // Fallbacks: scan for labels when fixed cells are empty
+          if (!className) {
+            for (let i = 0; i < Math.min(rows.length, 20); i++) {
+              const row = rows[i];
+              const labelIdx = row.findIndex((cell: any) => cell && /الصف/.test(String(cell)));
+              if (labelIdx !== -1) {
+                for (let j = labelIdx - 1; j >= 0; j--) {
+                  const val = String(row[j] ?? '').trim();
+                  if (val && val !== ':') { className = val; break; }
+                }
+                if (!className) {
+                  for (let j = labelIdx + 1; j < row.length; j++) {
+                    const val = String(row[j] ?? '').trim();
+                    if (val && val !== ':') { className = val; break; }
+                  }
+                }
+                if (className) break;
               }
             }
           }
-          
-          // Find division (الشعبة) in the same way
-          const divisionIndex = row.findIndex((cell: any) => 
-            cell && String(cell).trim() === 'الشعبة'
-          );
-          if (divisionIndex !== -1 && divisionIndex < 15) { // Make sure it's in the header, not in the table
-            for (let j = divisionIndex - 1; j >= 0; j--) {
-              if (row[j] && String(row[j]).trim() !== '' && String(row[j]).trim() !== ':') {
-                division = String(row[j]).trim();
-                break;
+          if (!division) {
+            for (let i = 0; i < Math.min(rows.length, 30); i++) {
+              const row = rows[i];
+              const labelIdx = row.findIndex((cell: any) => cell && /الشعبة/.test(String(cell)));
+              if (labelIdx !== -1) {
+                for (let j = labelIdx - 1; j >= 0; j--) {
+                  const val = String(row[j] ?? '').trim();
+                  if (val && val !== ':') { division = val; break; }
+                }
+                if (!division) {
+                  for (let j = labelIdx + 1; j < row.length; j++) {
+                    const val = String(row[j] ?? '').trim();
+                    if (val && val !== ':') { division = val; break; }
+                  }
+                }
+                if (division) break;
               }
             }
           }
-        }
+          let subject = '';
 
-        // Find header row (contains "اسم الطالب")
-        let headerRowIndex = -1;
-        let nameColumnIndex = -1;
-        let divisionColumnIndex = -1;
-        let nationalIdColumnIndex = -1;
-        let birthDateColumnIndex = -1;
-        let statusColumnIndex = -1;
-
-        for (let i = 0; i < rows.length; i++) {
-          const row = rows[i];
-          
-          const nameIdx = row.findIndex((cell: any) => 
-            cell && String(cell).includes('اسم الطالب')
-          );
-          
-          if (nameIdx !== -1) {
-            headerRowIndex = i;
-            nameColumnIndex = nameIdx;
-            
-            // Find other columns
-            divisionColumnIndex = row.findIndex((cell: any) => cell && String(cell).trim() === 'الشعبة');
-            nationalIdColumnIndex = row.findIndex((cell: any) => cell && String(cell).includes('رقم الإثبات'));
-            birthDateColumnIndex = row.findIndex((cell: any) => cell && String(cell).includes('تاريخ الميلاد'));
-            statusColumnIndex = row.findIndex((cell: any) => cell && String(cell).includes('حالة القيد'));
-            break;
-          }
-        }
-
-        if (headerRowIndex === -1 || nameColumnIndex === -1) {
-          reject(new Error('لم يتم العثور على بيانات الطلبة في الملف. تأكد من أن الملف من منصة أجيال.'));
-          return;
-        }
-
-        if (!className) {
-          reject(new Error('لم يتم العثور على اسم الصف في الملف. تأكد من أن الملف من منصة أجيال.'));
-          return;
-        }
-
-        // Extract students
-        const students: Student[] = [];
-        const classMap = new Map<string, Set<string>>();
-
-        for (let i = headerRowIndex + 1; i < rows.length; i++) {
-          const row = rows[i];
-          
-          const studentName = row[nameColumnIndex] ? String(row[nameColumnIndex]).trim() : '';
-          if (!studentName) continue;
-
-          // Get division from row if available, otherwise use extracted division
-          let studentDivision = division;
-          if (divisionColumnIndex !== -1 && row[divisionColumnIndex]) {
-            const divValue = String(row[divisionColumnIndex]).trim();
-            if (divValue) {
-              studentDivision = divValue;
+          // Attempt to detect subject by scanning first 20 rows for a label like "المبحث" أو "المادة الدراسية"
+          for (let i = 0; i < Math.min(rows.length, 20); i++) {
+            const row = rows[i];
+            const idx = row.findIndex((cell: any) => cell && /(المبحث|المادة\s*الدراسية|المادة)/.test(String(cell)));
+            if (idx !== -1) {
+              for (let j = idx + 1; j < row.length; j++) {
+                const val = String(row[j] ?? '').trim();
+                if (val && val !== ':') { subject = val; break; }
+              }
+              if (!subject) { // fallback: check left side too
+                for (let j = idx - 1; j >= 0; j--) {
+                  const val = String(row[j] ?? '').trim();
+                  if (val && val !== ':') { subject = val; break; }
+                }
+              }
+              if (subject) break;
             }
           }
 
-          const student: Student = {
-            id: `student-${i - headerRowIndex}`,
-            name: studentName,
-            class: className,
-            division: studentDivision,
-            nationalId: nationalIdColumnIndex !== -1 ? String(row[nationalIdColumnIndex] || '').trim() : '',
-            birthDate: birthDateColumnIndex !== -1 ? String(row[birthDateColumnIndex] || '').trim() : '',
-            status: statusColumnIndex !== -1 ? String(row[statusColumnIndex] || '').trim() : '',
-          };
-
-          students.push(student);
-
-          // Track classes and divisions
-          if (className && studentDivision) {
-            if (!classMap.has(className)) {
-              classMap.set(className, new Set());
+          // Fallback: parse from sheet name pattern: "Class - Division - Subject"
+          if (!className) {
+            const parts = sheetName.split(' - ');
+            if (parts.length >= 2) {
+              className = parts[0].trim();
+              division = parts[1].trim();
+              subject = parts.slice(2).join(' - ').trim();
             }
-            classMap.get(className)!.add(studentDivision);
+          }
+
+          // Global fallback: if class is still empty, reuse last detected class from previous sheet
+          if (!className && fallbackClassName) {
+            className = fallbackClassName;
+          }
+          // Remember first non-empty className to use for subsequent sheets if missing there
+          if (className && !fallbackClassName) {
+            fallbackClassName = className;
+          }
+
+          // Ensure we record the class/division even if we can't parse students later
+          if (className && division) {
+            if (!classMap.has(className)) classMap.set(className, new Map());
+            const divisionMap = classMap.get(className)!;
+            if (!divisionMap.has(division)) divisionMap.set(division, new Set());
+            if (subject) divisionMap.get(division)!.add(subject);
+          }
+
+          // Locate header row: look for "اسم الطالب"
+          let headerRowIndex = -1;
+          let nameColumnIndex = -1;
+          let divisionColumnIndex = -1;
+          let nationalIdColumnIndex = -1;
+          let birthDateColumnIndex = -1;
+          let statusColumnIndex = -1;
+
+          for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const nameIdx = row.findIndex((cell: any) => cell && /اسم\s*الطالب/.test(String(cell)));
+            if (nameIdx !== -1) {
+              headerRowIndex = i;
+              nameColumnIndex = nameIdx;
+              divisionColumnIndex = row.findIndex((cell: any) => cell && String(cell).trim() === 'الشعبة');
+              // Some files may use different labels; try common variants
+              nationalIdColumnIndex = row.findIndex((cell: any) => cell && /(رقم\s*(الإثبات|الهوية))/.test(String(cell)));
+              birthDateColumnIndex = row.findIndex((cell: any) => cell && /تاريخ\s*الميلاد/.test(String(cell)));
+              statusColumnIndex = row.findIndex((cell: any) => cell && /حالة\s*القيد/.test(String(cell)));
+              break;
+            }
+          }
+
+          if (headerRowIndex === -1 || nameColumnIndex === -1) {
+            // record sheet summary with zero students if we at least have class/division
+            if (className && division) {
+              sheetResults.push({
+                sheetName,
+                className,
+                division,
+                subject: subject || undefined,
+                students: [],
+              });
+            }
+            continue; // no students on this sheet
+          }
+
+          const sheetStudents: Student[] = [];
+          for (let i = headerRowIndex + 1; i < rows.length; i++) {
+            const row = rows[i];
+            const studentName = String(row[nameColumnIndex] ?? '').trim();
+            if (!studentName) continue;
+
+            let studentDivision = division;
+            if (divisionColumnIndex !== -1) {
+              const divValue = String(row[divisionColumnIndex] ?? '').trim();
+              if (divValue) studentDivision = divValue;
+            }
+
+            const nationalId = nationalIdColumnIndex !== -1 ? String(row[nationalIdColumnIndex] ?? '').trim() : '';
+            const studentId = nationalId || `student-${sheetName}-${i - headerRowIndex}`;
+
+            let existingStudent = allStudents.find(
+              s => s.id === studentId || (s.name === studentName && s.class === className)
+            );
+
+            if (!existingStudent) {
+              const birthDate = birthDateColumnIndex !== -1 ? String(row[birthDateColumnIndex] ?? '').trim() : '';
+              const status = statusColumnIndex !== -1 ? String(row[statusColumnIndex] ?? '').trim() : '';
+              const parsedName = parseFullName(studentName);
+              existingStudent = {
+                id: studentId,
+                name: studentName,
+                firstName: parsedName.first,
+                fatherName: parsedName.father,
+                grandName: parsedName.grand,
+                familyName: parsedName.family,
+                class: className,
+                division: studentDivision,
+                nationalId,
+                birthDate,
+                status,
+              };
+              allStudents.push(existingStudent);
+            } else if (studentDivision && !existingStudent.division) {
+              existingStudent.division = studentDivision;
+            }
+
+            if (className && studentDivision) {
+              if (!classMap.has(className)) classMap.set(className, new Map());
+              const divisionMap = classMap.get(className)!;
+              if (!divisionMap.has(studentDivision)) divisionMap.set(studentDivision, new Set());
+              if (subject) divisionMap.get(studentDivision)!.add(subject);
+            }
+            // snapshot this student for the current sheet
+            sheetStudents.push({ ...existingStudent });
+          }
+          // store per-sheet summary if found any students
+          if (sheetStudents.length > 0) {
+            sheetResults.push({
+              sheetName,
+              className,
+              division,
+              subject: subject || undefined,
+              students: sheetStudents,
+            });
           }
         }
 
-        if (students.length === 0) {
-          reject(new Error('لم يتم العثور على أي طلبة في الملف'));
+        if (allStudents.length === 0) {
+          reject(new Error('تعذر العثور على بيانات الطلاب في الملف.'));
           return;
         }
 
-        // Build classes structure
-        const classes = Array.from(classMap.entries()).map(([className, divisionSet]) => ({
+        // Group divisions under each class (الصف) as a single entry
+        const classes = Array.from(classMap.entries()).map(([className, divisionMap]) => ({
           className,
-          divisions: Array.from(divisionSet).map(division => ({
+          divisions: Array.from(divisionMap.entries()).map(([division, subjects]) => ({
             id: `${className}-${division}`,
             division,
-            subjects: [] as { id: string; name: string }[]
+            subjects: Array.from(subjects).map(subject => ({ id: `${className}-${division}-${subject}`, name: subject }))
           }))
         }));
 
-        resolve({ students, classes });
+        resolve({ students: allStudents, classes, sheets: sheetResults });
       } catch (error: any) {
         console.error('Error parsing Excel:', error);
-        reject(new Error('خطأ في قراءة الملف. تأكد من أن الملف بصيغة Excel صحيحة من منصة أجيال'));
+        reject(new Error('حدث خطأ أثناء قراءة الملف. الرجاء التأكد من تنسيق ملف Excel.'));
       }
     };
 
-    reader.onerror = () => {
-      reject(new Error('فشل في قراءة الملف'));
-    };
-
+    reader.onerror = () => reject(new Error('تعذر قراءة الملف.'));
     reader.readAsBinaryString(file);
   });
 }
 
-// Legacy function for backward compatibility
+// Legacy alias
 export const parseExcelFile = parseMinistryFile;

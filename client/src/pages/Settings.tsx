@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,6 +25,27 @@ export default function Settings() {
   const [parsedData, setParsedData] = useState<ParsedData | null>(null);
   const [classes, setClasses] = useState<any[]>([]);
 
+  // Load saved settings on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('appSettings');
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      setTeacherName(saved.teacherName ?? "");
+      setDirectorate(saved.directorate ?? "");
+      setSchool(saved.school ?? "");
+      setTown(saved.town ?? "");
+      setIsHomeroom(!!saved.isHomeroom);
+      setHomeroomClass(saved.homeroomClass ?? "");
+      setClasses(Array.isArray(saved.classes) ? saved.classes : []);
+      // Rebuild minimal parsedData for UI summaries/components that depend on it
+      const students = Array.isArray(saved.students) ? saved.students : [];
+      setParsedData({ students, classes: Array.isArray(saved.classes) ? saved.classes : [] });
+    } catch (_) {
+      // ignore corrupted storage
+    }
+  }, []);
+
   const handleFileSelect = async (selectedFile: File) => {
     setFile(selectedFile);
     setIsProcessing(true);
@@ -48,6 +69,14 @@ export default function Settings() {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleUploadError = (message: string) => {
+    toast({
+      title: "تعذر رفع الملف",
+      description: message,
+      variant: "destructive",
+    });
   };
 
   const handleSave = () => {
@@ -129,6 +158,8 @@ export default function Settings() {
               setClasses([]);
               setParsedData(null);
             }}
+            disabled={isProcessing}
+            onError={handleUploadError}
           />
           {parsedData && (
             <div className="mt-4 p-3 bg-chart-1/10 border border-chart-1/20 rounded-lg">
@@ -242,7 +273,7 @@ export default function Settings() {
       </Card>
 
       <div className="flex flex-wrap gap-3">
-        <Button onClick={handleSave} disabled={!file || classes.length === 0} data-testid="button-save">
+        <Button onClick={handleSave} disabled={classes.length === 0} data-testid="button-save">
           <Save className="w-4 h-4 ml-2" />
           حفظ التجهيزات
         </Button>
