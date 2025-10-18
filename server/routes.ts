@@ -24,6 +24,26 @@ const getCurrentDir = () => {
   return dirname(fileURLToPath(import.meta.url));
 };
 
+const resolveTemplatePath = (filename: string) => {
+  const projectRoot = path.resolve(getCurrentDir(), "..");
+  const candidates: string[] = [
+    path.resolve(projectRoot, "templates", filename),
+    path.resolve(projectRoot, filename),
+    path.resolve(projectRoot, "dist", "templates", filename),
+  ];
+  const cwd = process.cwd();
+  if (cwd && cwd !== projectRoot) {
+    candidates.push(path.resolve(cwd, "templates", filename));
+    candidates.push(path.resolve(cwd, filename));
+  }
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+};
+
 const sendExportAndCleanup = (res: Response, id: string, exportPath: string) => {
   res.download(exportPath, path.basename(exportPath), (err) => {
     if (!err) {
@@ -111,28 +131,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const projectRoot = path.resolve(getCurrentDir(), "..");
-      const templatesDir = path.resolve(projectRoot, "templates");
-      const templatePath = fs.existsSync(path.resolve(templatesDir, "mark_s.xlsx"))
-        ? path.resolve(templatesDir, "mark_s.xlsx")
-        : path.resolve(projectRoot, "mark_s.xlsx");
+      const templatePath = resolveTemplatePath("mark_s.xlsx");
+      if (!templatePath) {
+        return res.status(500).json({ message: "قالب mark_s.xlsx غير متوفر على الخادم" });
+      }
       const exportsDir = path.resolve(projectRoot, "exports");
       await fs.promises.mkdir(exportsDir, { recursive: true });
 
       let templateWorkbook = new ExcelJS.Workbook();
       let templateSheet: ExcelJS.Worksheet | null = null;
       try {
-        if (fs.existsSync(templatePath)) {
-          await templateWorkbook.xlsx.readFile(templatePath);
-          templateSheet = templateWorkbook.worksheets[0] ?? null;
-        }
-      } catch {}
+        await templateWorkbook.xlsx.readFile(templatePath);
+        templateSheet = templateWorkbook.worksheets[0] ?? null;
+      } catch (error) {
+        return res.status(500).json({ message: "تعذر قراءة قالب mark_s.xlsx" });
+      }
 
       if (!templateSheet) {
-        templateWorkbook = new ExcelJS.Workbook();
-        templateSheet = templateWorkbook.addWorksheet("Template", {
-          views: [{ rightToLeft: true }],
-        });
-        templateSheet.addRow(["الرقم المتسلسل", "الاسم", "التقويم الاول", "التقويم الثاني", "التقويم الثالث", "الاختبار النهائي", "المجموع", "المعدل", "ملحوظات"]);
+        return res.status(500).json({ message: "تعذر تحديد ورقة العمل من قالب mark_s.xlsx" });
       }
 
       const cloneWorksheet = (source: ExcelJS.Worksheet, target: ExcelJS.Workbook, name: string) => {

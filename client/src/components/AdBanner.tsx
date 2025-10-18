@@ -30,10 +30,19 @@ export function AdBanner({
     if (typeof window === "undefined") return;
     const element = elementRef.current;
     if (!element) return;
+    const hasRenderedAd = element.getAttribute("data-adsbygoogle-status") === "done";
+    if (hasRenderedAd) {
+      if (!loaded) setLoaded(true);
+      return;
+    }
     const minSlotWidth = 160;
 
     const loadAd = (width: number) => {
       if (loaded) return;
+      if (element.getAttribute("data-adsbygoogle-status") === "done") {
+        setLoaded(true);
+        return;
+      }
       if (width < minSlotWidth) return;
       try {
         (window.adsbygoogle = window.adsbygoogle || []).push({});

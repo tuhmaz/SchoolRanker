@@ -1,0 +1,7 @@
+{
+  "nodejs": "22.20.0",
+  "app_type": "node",
+  "startup_file": "dist/index.js",
+  "environment": "production",
+  "friendly_error_pages": "on"
+}
