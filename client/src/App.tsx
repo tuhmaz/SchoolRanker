@@ -8,6 +8,7 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AdSidebar } from "@/components/AdSidebar";
 import { AdFooter } from "@/components/AdFooter";
+import { StructuredData } from "@/components/StructuredData";
 import Settings from "@/pages/Settings";
 import SideGradebook from "@/pages/SideGradebook";
 import Performance from "@/pages/Performance";
@@ -43,6 +44,8 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
+        <StructuredData type="Organization" />
+        <StructuredData type="WebApplication" />
         <SidebarProvider style={style as React.CSSProperties}>
           <div className="flex h-screen w-full">
             <AppSidebar />

@@ -36,7 +36,7 @@ export function AdBanner({
     <ins
       className={classes}
       style={{ display: "block", width: "100%", ...style }}
-      data-ad-client="YOUR_ADSENSE_CLIENT_ID"
+      data-ad-client="ca-pub-5170334485305985"
       data-ad-slot={slot}
       data-ad-format={format}
       data-ad-layout={layout}
