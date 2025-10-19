@@ -1,4 +1,5 @@
-import { Switch, Route } from "wouter";
+import { useMemo } from "react";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -18,6 +19,14 @@ import { StudentSchedulePage } from "@/pages/StudentSchedule";
 import Templates from "@/pages/Templates";
 import Instructions from "@/pages/Instructions";
 import About from "@/pages/About";
+
+const adSupportedPaths = new Set([
+  "/side-gradebook",
+  "/performance",
+  "/main-gradebook",
+  "/attendance",
+  "/schedule",
+]);
 
 function Router() {
   return (
@@ -40,6 +49,9 @@ function App() {
     "--sidebar-width": "20rem",
     "--sidebar-width-icon": "4rem",
   };
+
+  const [location] = useLocation();
+  const showAds = useMemo(() => adSupportedPaths.has(location), [location]);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -67,10 +79,10 @@ function App() {
                       <Router />
                     </div>
                   </div>
-                  <AdSidebar />
+                  {showAds && <AdSidebar />}
                 </div>
               </main>
-              <AdFooter />
+              {showAds && <AdFooter />}
             </div>
           </div>
         </SidebarProvider>
