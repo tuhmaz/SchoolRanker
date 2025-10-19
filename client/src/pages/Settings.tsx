@@ -24,6 +24,7 @@ export default function Settings() {
   const [homeroomClass, setHomeroomClass] = useState("");
   const [parsedData, setParsedData] = useState<ParsedData | null>(null);
   const [classes, setClasses] = useState<any[]>([]);
+  const [warnings, setWarnings] = useState<string[]>([]);
 
   // Load saved settings on mount
   useEffect(() => {
@@ -37,7 +38,9 @@ export default function Settings() {
       setTown(saved.town ?? "");
       setIsHomeroom(!!saved.isHomeroom);
       setHomeroomClass(saved.homeroomClass ?? "");
+      const savedWarnings = Array.isArray(saved.warnings) ? saved.warnings : [];
       setClasses(Array.isArray(saved.classes) ? saved.classes : []);
+      setWarnings(savedWarnings);
       // Rebuild minimal parsedData for UI summaries/components that depend on it
       const students = Array.isArray(saved.students) ? saved.students : [];
       setParsedData({ students, classes: Array.isArray(saved.classes) ? saved.classes : [] });
@@ -54,11 +57,19 @@ export default function Settings() {
       const data = await parseExcelFile(selectedFile);
       setParsedData(data);
       setClasses(data.classes);
+      setWarnings(data.warnings ?? []);
       
       toast({
         title: "تم التحميل بنجاح",
         description: `تم استخلاص ${data.students.length} طالب/ة من ${data.classes.length} صف`,
       });
+
+      if (data.warnings && data.warnings.length > 0) {
+        toast({
+          title: "تحذيرات في الملف",
+          description: data.warnings.join("\n"),
+        });
+      }
     } catch (error: any) {
       toast({
         title: "خطأ في معالجة الملف",
@@ -88,7 +99,8 @@ export default function Settings() {
       isHomeroom,
       homeroomClass,
       classes,
-      students: parsedData?.students || []
+      students: parsedData?.students || [],
+      warnings
     };
     
     localStorage.setItem('appSettings', JSON.stringify(settings));
@@ -110,6 +122,7 @@ export default function Settings() {
       setHomeroomClass("");
       setClasses([]);
       setParsedData(null);
+      setWarnings([]);
       localStorage.removeItem('appSettings');
       
       toast({
@@ -161,14 +174,30 @@ export default function Settings() {
             disabled={isProcessing}
             onError={handleUploadError}
           />
-          {parsedData && (
-            <div className="mt-4 p-3 bg-chart-1/10 border border-chart-1/20 rounded-lg">
-              <div className="flex items-center gap-2 text-chart-1">
-                <i className="fas fa-check-circle"></i>
-                <span className="font-medium">
-                  تم استخلاص {parsedData.students.length} طالب/ة من {parsedData.classes.length} صف
-                </span>
-              </div>
+          {(parsedData || warnings.length > 0) && (
+            <div className="mt-4 space-y-3">
+              {parsedData && (
+                <div className="p-3 bg-chart-1/10 border border-chart-1/20 rounded-lg">
+                  <div className="flex items-center gap-2 text-chart-1">
+                    <i className="fas fa-check-circle"></i>
+                    <span className="font-medium">
+                      تم استخلاص {parsedData.students.length} طالب/ة من {parsedData.classes.length} صف
+                    </span>
+                  </div>
+                </div>
+              )}
+              {warnings.length > 0 && (
+                <div className="p-3 bg-yellow-100 border border-yellow-300 text-yellow-900 rounded-lg space-y-2">
+                  <div className="font-semibold">تحذيرات في الملف</div>
+                  <ul className="list-disc pr-6 space-y-1">
+                    {warnings.map((warning, idx) => (
+                      <li key={idx} className="text-sm leading-relaxed">
+                        {warning}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
         </CardContent>

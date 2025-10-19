@@ -53,6 +53,20 @@ const sendExportAndCleanup = (res: Response, id: string, exportPath: string) => 
   });
 };
 
+const normalizeLabel = (value: unknown, fallback = "") => {
+  const text = value != null ? String(value).trim() : "";
+  return text.length > 0 ? text : fallback;
+};
+
+const sanitizeSheetName = (base: string) => {
+  const cleaned = base
+    .replace(/[\\/*?:\\[\\]]+/g, " ")
+    .replace(/\s* - \s*/g, " - ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned;
+};
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // put application routes here
   // prefix all routes with /api
@@ -268,36 +282,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       outWorkbook.views = templateWorkbook.views?.map((view) => ({ ...view }));
 
       for (const group of body.classes) {
+        const className = normalizeLabel(group.className, "غير محدد");
         for (const div of group.divisions) {
+          const divisionName = normalizeLabel(div.division, "بدون شعبة");
           const subjects = Array.isArray(div.subjects) && div.subjects.length > 0 ? div.subjects : [{ id: "__default", name: "" }];
 
           for (const subject of subjects) {
-            const subjectName = subject?.name?.trim() ?? "";
-            const baseSheetName = [group.className, div.division, subjectName].filter(Boolean).join(" - ");
-            const sheetKey = ensureUniqueSheetName(baseSheetName || `${group.className}-${div.division}`, outWorkbook);
+            const subjectNameRaw = normalizeLabel(subject?.name, "");
+            const baseSheetName = sanitizeSheetName([className, divisionName, subjectNameRaw].filter(Boolean).join(" - "));
+            const fallbackSheet = sanitizeSheetName(`${className}-${divisionName}`) || "Sheet";
+            const sheetKey = ensureUniqueSheetName(baseSheetName || fallbackSheet, outWorkbook);
             const worksheet = cloneWorksheet(templateSheet!, outWorkbook, sheetKey);
 
-            setCell(worksheet, 1, 1, group.className);
-            setCell(worksheet, 1, 5, div.division);
-            if (subjectName) setCell(worksheet, 1, 10, subjectName);
+            setCell(worksheet, 1, 1, className);
+            setCell(worksheet, 1, 5, divisionName);
+            if (subjectNameRaw) setCell(worksheet, 1, 10, subjectNameRaw);
             if (body.isHomeroom && body.teacherName && body.homeroomClass === `${group.className}-${div.division}`) {
               setCell(worksheet, 2, 1, body.teacherName);
             }
-            const footerLabel = (baseSheetName || [group.className, div.division].filter(Boolean).join(" - ")).trim();
+            const footerLabel = baseSheetName || sanitizeSheetName([className, divisionName].filter(Boolean).join(" - "));
             if (footerLabel) {
               worksheet.headerFooter.differentOddEven = false;
               worksheet.headerFooter.oddFooter = `&C${footerLabel}`;
             }
 
-            setNextToLabel(worksheet, /الصف/, group.className);
-            setNextToLabel(worksheet, /الشعبة/, div.division);
-            setNextToLabel(worksheet, /(المادة|المادة\s*الدراسية|المبحث)/, subjectName);
-            setNextToLabel(worksheet, /المدرسة/, body.school);
-            setNextToLabel(worksheet, /المديرية/, body.directorate);
+            setNextToLabel(worksheet, /الصف/, className);
+            setNextToLabel(worksheet, /الشعبة/, divisionName);
+            setNextToLabel(worksheet, /(المادة|المادة\s*الدراسية|المبحث)/, subjectNameRaw);
+            setNextToLabel(worksheet, /المدرسة/, normalizeLabel(body.school));
+            setNextToLabel(worksheet, /المديرية/, normalizeLabel(body.directorate));
             setNextToLabel(worksheet, /(اسم\s*المعلم|المعلم)/, body.teacherName);
-            setNextToLabel(worksheet, /(البلدة|الموقع)/, body.town);
-            setNextToLabel(worksheet, /(البرنامج|المسار)/, body.program);
-            setNextToLabel(worksheet, /(العام\s*الدراسي|السنة\s*الدراسية)/, body.year);
+            setNextToLabel(worksheet, /(البلدة|الموقع)/, normalizeLabel(body.town));
+            setNextToLabel(worksheet, /(البرنامج|المسار)/, normalizeLabel(body.program));
+            setNextToLabel(worksheet, /(العام\s*الدراسي|السنة\s*الدراسية)/, normalizeLabel(body.year));
 
             const nameHeaderPos = findCell(worksheet, (text) => /(الاسم|اسم\s*الطالب)/.test(text));
             const numberHeaderPos = findCell(worksheet, (text) => /(الرقم\s*المتسلسل|^\s*م\s*$)/.test(text));
@@ -306,7 +323,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const startRow = nameHeaderPos ? nameHeaderPos.r + 3 : 6;
 
             const students = body.students
-              .filter((s) => s.class === group.className && s.division === div.division)
+              .filter((s) => normalizeLabel(s.class, "غير محدد") === className && normalizeLabel(s.division, "بدون شعبة") === divisionName)
               .slice()
               .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "ar", { sensitivity: "base" }));
 
@@ -475,18 +492,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       outWorkbook.views = templateWorkbook.views?.map((view) => ({ ...view }));
 
       for (const group of body.classes) {
+        const className = normalizeLabel(group.className, "غير محدد");
         for (const div of group.divisions) {
+          const divisionName = normalizeLabel(div.division, "بدون شعبة");
           const subjects = Array.isArray(div.subjects) && div.subjects.length > 0 ? div.subjects : [{ id: "__default", name: "" }];
 
           for (const subject of subjects) {
-            const subjectName = subject?.name?.trim() ?? "";
-            const baseSheetName = [group.className, div.division, subjectName].filter(Boolean).join(" - ");
-            const sheetKey = ensureUniqueSheetName(baseSheetName || `${group.className}-${div.division}`, outWorkbook);
+            const subjectNameRaw = normalizeLabel(subject?.name, "");
+            const baseSheetName = sanitizeSheetName([className, divisionName, subjectNameRaw].filter(Boolean).join(" - "));
+            const fallbackSheet = sanitizeSheetName(`${className}-${divisionName}`) || "Sheet";
+            const sheetKey = ensureUniqueSheetName(baseSheetName || fallbackSheet, outWorkbook);
             const worksheet = cloneWorksheet(templateSheet!, outWorkbook, sheetKey);
 
-            if (group.className?.trim()) worksheet.getCell("A1").value = `الصف: ${group.className}`;
-            if (div.division?.trim()) worksheet.getCell("A2").value = `الشعبة: ${div.division}`;
-            if (subjectName) worksheet.getCell("B3").value = `المادة: ${subjectName}`;
+            if (className) worksheet.getCell("A1").value = `الصف: ${className}`;
+            if (divisionName) worksheet.getCell("A2").value = `الشعبة: ${divisionName}`;
+            if (subjectNameRaw) worksheet.getCell("B3").value = `المادة: ${subjectNameRaw}`;
             if (body.teacherName?.trim()) worksheet.getCell("B4").value = `المعلم: ${body.teacherName}`;
 
             const nameHeaderPos = findCell(worksheet, (text) => /(الاسم|اسم\s*الطالب)/.test(text));
@@ -496,7 +516,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const startRow = nameHeaderPos ? nameHeaderPos.r + 1 : 5;
 
             const students = body.students
-              .filter((s) => s.class === group.className && s.division === div.division)
+              .filter((s) => normalizeLabel(s.class, "غير محدد") === className && normalizeLabel(s.division, "بدون شعبة") === divisionName)
               .slice()
               .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "ar", { sensitivity: "base" }));
 

@@ -1,6 +1,7 @@
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
+  LimitRequestBody 104857600
   
   # Don't rewrite API requests
   RewriteRule ^api/ - [L]
