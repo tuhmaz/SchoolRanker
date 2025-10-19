@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { FileUploadZone } from "@/components/FileUploadZone";
 import { ClassSubjectManager } from "@/components/ClassSubjectManager";
 import { LoadingOverlay } from "@/components/LoadingOverlay";
-import { Save, RefreshCcw, Printer } from "lucide-react";
+import { Save, RefreshCcw, Printer, ArrowUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { parseExcelFile, type ParsedData } from "@/lib/excelParser";
 
@@ -25,6 +25,7 @@ export default function Settings() {
   const [parsedData, setParsedData] = useState<ParsedData | null>(null);
   const [classes, setClasses] = useState<any[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
+  const [showScrollTop, setShowScrollTop] = useState(false);
 
   // Load saved settings on mount
   useEffect(() => {
@@ -47,6 +48,16 @@ export default function Settings() {
     } catch (_) {
       // ignore corrupted storage
     }
+  }, []);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 300);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    handleScroll();
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   const handleFileSelect = async (selectedFile: File) => {
@@ -137,6 +148,10 @@ export default function Settings() {
       title: "جاري الطباعة",
       description: "سيتم فتح نافذة الطباعة",
     });
+  };
+
+  const handleScrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const availableClasses = classes.flatMap(classGroup =>
@@ -292,29 +307,77 @@ export default function Settings() {
             {classes.length === 0 ? "سيتم عرض الصفوف بعد رفع ملف الطلبة" : "أضف المواد الدراسية لكل صف وشعبة"}
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <ClassSubjectManager 
-            classes={classes} 
-            onUpdate={setClasses} 
+        <div className="flex items-center justify-between p-4 border border-border rounded-lg">
+          <div>
+            <Label htmlFor="homeroom-switch" className="text-base font-medium">
+              هل أنت مربي صف؟
+            </Label>
+          </div>
+          <Switch
+            id="homeroom-switch"
+            checked={isHomeroom}
+            onCheckedChange={setIsHomeroom}
+            data-testid="switch-homeroom"
+          />
+        </div>
+
+        {isHomeroom && availableClasses.length > 0 && (
+          <div className="space-y-2">
+            <Label htmlFor="homeroom-class">اختر صفك</Label>
+            <Select value={homeroomClass} onValueChange={setHomeroomClass}>
+              <SelectTrigger id="homeroom-class" data-testid="select-homeroom-class">
+                <SelectValue placeholder="اختر صفك..." />
+              </SelectTrigger>
+              <SelectContent>
+                {availableClasses.map((cls) => (
+                  <SelectItem key={cls.id} value={cls.id}>
+                    {cls.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        <CardContent className="mt-4">
+          <ClassSubjectManager
+            classes={classes}
+            onUpdate={setClasses}
             students={parsedData?.students || []}
           />
         </CardContent>
       </Card>
 
       <div className="flex flex-wrap gap-3">
-        <Button onClick={handleSave} disabled={classes.length === 0} data-testid="button-save">
-          <Save className="w-4 h-4 ml-2" />
+        <Button onClick={handleSave} className="gap-2">
+          <Save className="w-4 h-4" />
           حفظ التجهيزات
         </Button>
         <Button variant="outline" onClick={handleReset} data-testid="button-reset">
           <RefreshCcw className="w-4 h-4 ml-2" />
           إعادة تعيين
         </Button>
-        <Button variant="secondary" onClick={handlePrintCover} disabled={!teacherName || !school} data-testid="button-print-cover">
+        <Button
+          variant="secondary"
+          onClick={handlePrintCover}
+          disabled={!teacherName || !school}
+          data-testid="button-print-cover"
+        >
           <Printer className="w-4 h-4 ml-2" />
           طباعة الغلاف
         </Button>
       </div>
+
+      {showScrollTop && (
+        <Button
+          type="button"
+          onClick={handleScrollToTop}
+          className="fixed bottom-6 left-6 h-12 w-12 rounded-full shadow-lg"
+          size="icon"
+          aria-label="العودة إلى الأعلى"
+        >
+          <ArrowUp className="h-5 w-5" />
+        </Button>
+      )}
     </div>
   );
 }
