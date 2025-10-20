@@ -31,7 +31,11 @@ const adSupportedPaths = new Set([
   "/schedule",
 ]);
 
-function Router() {
+function Router({ isNotFound }: { isNotFound: boolean }) {
+  if (isNotFound) {
+    return <NotFound />;
+  }
+
   return (
     <Switch>
       <Route path="/" component={Home} />
@@ -44,7 +48,7 @@ function Router() {
       <Route path="/templates" component={Templates} />
       <Route path="/instructions" component={Instructions} />
       <Route path="/about" component={About} />
-      <Route component={NotFound} />
+      <Route component={() => null} />
     </Switch>
   );
 }
@@ -57,6 +61,23 @@ function App() {
 
   const [location] = useLocation();
   const showAds = useMemo(() => adSupportedPaths.has(location), [location]);
+
+  // Define valid routes
+  const validRoutes = [
+    "/",
+    "/settings",
+    "/side-gradebook",
+    "/performance",
+    "/main-gradebook",
+    "/attendance",
+    "/schedule",
+    "/templates",
+    "/instructions",
+    "/about",
+  ];
+
+  // Check if current location is a valid route
+  const isNotFound = !validRoutes.includes(location);
 
   const faqData = {
     questions: [
@@ -111,6 +132,18 @@ function App() {
     ],
   };
 
+  // If 404, render NotFound page without layout
+  if (isNotFound) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Router isNotFound={true} />
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
@@ -133,7 +166,7 @@ function App() {
                 <div className="flex gap-6 w-full">
                   <div className="flex-1">
                     <div className="max-w-4xl mx-auto">
-                      <Router />
+                      <Router isNotFound={false} />
                     </div>
                   </div>
                   {showAds && <AdSidebar />}
