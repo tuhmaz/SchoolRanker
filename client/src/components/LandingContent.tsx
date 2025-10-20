@@ -32,6 +32,9 @@ export function LandingContent() {
           نظام متكامل وسهل الاستخدام لإدارة سجلات الطلبة والمعلمين مع معالجة ملفات Excel من منصة أجيال.
           احصل على تقارير دقيقة ومنظمة في دقائق معدودة - آمن وموثوق ومتوافق مع وزارة التربية والتعليم.
         </p>
+        <p className="text-base text-muted-foreground max-w-2xl mx-auto">
+          خدمتك هو نظام إدارة سجلات الطلبة ومنصة أجيال متكاملة، يجمع بين الكفاءة والموثوقية لدعم المدارس. 
+        </p>
         <div className="flex flex-wrap gap-4 justify-center mt-6">
           <Button
             size="lg"

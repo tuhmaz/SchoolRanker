@@ -11,7 +11,7 @@ import { AdSidebar } from "@/components/AdSidebar";
 import { AdFooter } from "@/components/AdFooter";
 import { StructuredData } from "@/components/StructuredData";
 import { Logo } from "@/components/Logo";
-const Home = lazy(() => import("@/pages/Home"));
+import Home from "@/pages/Home";
 const Settings = lazy(() => import("@/pages/Settings"));
 const SideGradebook = lazy(() => import("@/pages/SideGradebook"));
 const Performance = lazy(() => import("@/pages/Performance"));
