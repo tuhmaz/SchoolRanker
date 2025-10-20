@@ -43,7 +43,6 @@ function getSchema(type: string, customData?: Record<string, any>) {
           '@type': 'Country',
           name: 'فلسطين',
         },
-        serviceType: 'نظام إدارة تعليمي',
         ...customData,
       };
 
