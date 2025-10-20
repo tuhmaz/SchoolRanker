@@ -1,4 +1,4 @@
-import { Suspense, lazy, useMemo } from "react";
+import { Suspense, lazy } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -7,8 +7,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { AdSidebar } from "@/components/AdSidebar";
-import { AdFooter } from "@/components/AdFooter";
 import { StructuredData } from "@/components/StructuredData";
 import { Logo } from "@/components/Logo";
 import Home from "@/pages/Home";
@@ -22,14 +20,6 @@ const Templates = lazy(() => import("@/pages/Templates"));
 const Instructions = lazy(() => import("@/pages/Instructions"));
 const About = lazy(() => import("@/pages/About"));
 const NotFound = lazy(() => import("@/pages/not-found"));
-
-const adSupportedPaths = new Set([
-  "/side-gradebook",
-  "/performance",
-  "/main-gradebook",
-  "/attendance",
-  "/schedule",
-]);
 
 function Router({ isNotFound }: { isNotFound: boolean }) {
   if (isNotFound) {
@@ -60,7 +50,6 @@ function App() {
   };
 
   const [location] = useLocation();
-  const showAds = useMemo(() => adSupportedPaths.has(location), [location]);
 
   // Define valid routes
   const validRoutes = [
@@ -173,10 +162,8 @@ function App() {
                       </Suspense>
                     </div>
                   </div>
-                  {showAds && <AdSidebar />}
                 </div>
               </main>
-              {showAds && <AdFooter />}
             </div>
           </div>
         </SidebarProvider>

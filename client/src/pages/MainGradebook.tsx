@@ -48,7 +48,7 @@ export default function MainGradebook() {
   const totalStudents = useMemo(() => settings?.students?.length ?? 0, [settings]);
   const totalClasses = useMemo(() => settings?.classes?.length ?? 0, [settings]);
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (templatePreference?: "lower" | "upper") => {
     if (!hasPreparedData) {
       toast({
         title: "البيانات غير مكتملة",
@@ -61,9 +61,10 @@ export default function MainGradebook() {
     try {
       setIsGenerating(true);
       setDownloadInfo(null);
+      const modeLabel = templatePreference === "lower" ? "(روضة - رابع)" : templatePreference === "upper" ? "(خامس - ثاني ثانوي)" : "";
       toast({
         title: "جاري المعالجة",
-        description: "سيتم إنشاء دفتر العلامات الرئيسي الآن",
+        description: modeLabel ? `سيتم إنشاء دفتر العلامات الرئيسي ${modeLabel}` : "سيتم إنشاء دفتر العلامات الرئيسي الآن",
       });
 
       const response = await fetch("/api/export/main-gradebook", {
@@ -78,6 +79,7 @@ export default function MainGradebook() {
           year: settings?.year,
           isHomeroom: settings?.isHomeroom,
           homeroomClass: settings?.homeroomClass,
+          templatePreference,
           classes: settings?.classes ?? [],
           students: settings?.students ?? [],
         }),
@@ -192,9 +194,21 @@ export default function MainGradebook() {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <Button onClick={handleGenerate} disabled={isGenerating || !hasPreparedData} data-testid="button-generate-main-gradebook">
+            <Button
+              onClick={() => handleGenerate("lower")}
+              disabled={isGenerating || !hasPreparedData}
+              data-testid="button-generate-main-gradebook-lower"
+            >
               <FileSpreadsheet className="w-4 h-4 ml-2" />
-              معالجة وإنشاء الدفتر
+              إنشاء الدفتر (روضة - رابع)
+            </Button>
+            <Button
+              onClick={() => handleGenerate("upper")}
+              disabled={isGenerating || !hasPreparedData}
+              data-testid="button-generate-main-gradebook-upper"
+            >
+              <FileSpreadsheet className="w-4 h-4 ml-2" />
+              إنشاء الدفتر (خامس - ثاني ثانوي)
             </Button>
             <Button
               variant="outline"
