@@ -22,6 +22,7 @@ export function Logo({ className = '', size = 'md', showText = true }: LogoProps
         width={width}
         height={height}
         className="object-contain"
+        loading={size === 'xl' ? 'eager' : 'lazy'}
       />
 
       {showText && (

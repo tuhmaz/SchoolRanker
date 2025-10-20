@@ -21,6 +21,7 @@ import { StudentSchedulePage } from "@/pages/StudentSchedule";
 import Templates from "@/pages/Templates";
 import Instructions from "@/pages/Instructions";
 import About from "@/pages/About";
+import NotFound from "@/pages/not-found";
 
 const adSupportedPaths = new Set([
   "/side-gradebook",
@@ -43,6 +44,7 @@ function Router() {
       <Route path="/templates" component={Templates} />
       <Route path="/instructions" component={Instructions} />
       <Route path="/about" component={About} />
+      <Route component={NotFound} />
     </Switch>
   );
 }

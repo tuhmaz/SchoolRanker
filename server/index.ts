@@ -65,6 +65,14 @@ app.use((req, res, next) => {
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   res.setHeader("Content-Security-Policy", contentSecurityPolicy);
+
+  // Cache control headers for static assets
+  if (req.url.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+  } else if (req.url.match(/\.(html|json)$/)) {
+    res.setHeader("Cache-Control", "public, max-age=3600, must-revalidate");
+  }
+
   next();
 });
 
