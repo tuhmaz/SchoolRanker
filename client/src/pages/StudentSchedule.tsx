@@ -13,7 +13,7 @@ interface StudentAbsence {
   absenceCount: number;
 }
 
-export function StudentSchedulePage() {
+export default function StudentSchedulePage() {
   const { toast } = useToast();
   const [selectedDivisionId, setSelectedDivisionId] = useState<string>("");
   const [selectedSemester, setSelectedSemester] = useState<"1" | "2">("1");

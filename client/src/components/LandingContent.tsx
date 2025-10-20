@@ -33,7 +33,11 @@ export function LandingContent() {
           احصل على تقارير دقيقة ومنظمة في دقائق معدودة - آمن وموثوق ومتوافق مع وزارة التربية والتعليم.
         </p>
         <div className="flex flex-wrap gap-4 justify-center mt-6">
-          <Button size="lg" asChild>
+          <Button
+            size="lg"
+            asChild
+            className="bg-[#0f766e] text-white hover:bg-[#0c5f58] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#0f766e]"
+          >
             <Link href="/settings">
               <Settings className="ml-2 h-5 w-5" />
               ابدأ الآن مجاناً
@@ -334,7 +338,11 @@ export function LandingContent() {
           النظام مجاني بالكامل وسهل الاستخدام.
         </p>
         <div className="flex flex-wrap gap-4 justify-center mt-6">
-          <Button size="lg" asChild>
+          <Button
+            size="lg"
+            asChild
+            className="bg-[#0f766e] text-white hover:bg-[#0c5f58] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#0f766e]"
+          >
             <Link href="/settings">
               ابدأ الآن مجاناً
             </Link>

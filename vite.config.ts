@@ -30,6 +30,15 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    minify: "terser",
+    terserOptions: {
+      compress: {
+        passes: 2,
+      },
+      format: {
+        comments: false,
+      },
+    },
   },
   server: {
     fs: {

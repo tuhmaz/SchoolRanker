@@ -25,6 +25,8 @@ export function ThemeToggle() {
       variant="ghost"
       size="icon"
       onClick={toggleTheme}
+      aria-label={theme === "light" ? "تشغيل الوضع الداكن" : "تشغيل الوضع الفاتح"}
+      aria-pressed={theme === "dark"}
       data-testid="button-theme-toggle"
     >
       {theme === "light" ? (

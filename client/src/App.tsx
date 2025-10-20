@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { Suspense, lazy, useMemo } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -11,17 +11,17 @@ import { AdSidebar } from "@/components/AdSidebar";
 import { AdFooter } from "@/components/AdFooter";
 import { StructuredData } from "@/components/StructuredData";
 import { Logo } from "@/components/Logo";
-import Home from "@/pages/Home";
-import Settings from "@/pages/Settings";
-import SideGradebook from "@/pages/SideGradebook";
-import Performance from "@/pages/Performance";
-import MainGradebook from "@/pages/MainGradebook";
-import Attendance from "@/pages/Attendance";
-import { StudentSchedulePage } from "@/pages/StudentSchedule";
-import Templates from "@/pages/Templates";
-import Instructions from "@/pages/Instructions";
-import About from "@/pages/About";
-import NotFound from "@/pages/not-found";
+const Home = lazy(() => import("@/pages/Home"));
+const Settings = lazy(() => import("@/pages/Settings"));
+const SideGradebook = lazy(() => import("@/pages/SideGradebook"));
+const Performance = lazy(() => import("@/pages/Performance"));
+const MainGradebook = lazy(() => import("@/pages/MainGradebook"));
+const Attendance = lazy(() => import("@/pages/Attendance"));
+const StudentSchedulePage = lazy(() => import("@/pages/StudentSchedule"));
+const Templates = lazy(() => import("@/pages/Templates"));
+const Instructions = lazy(() => import("@/pages/Instructions"));
+const About = lazy(() => import("@/pages/About"));
+const NotFound = lazy(() => import("@/pages/not-found"));
 
 const adSupportedPaths = new Set([
   "/side-gradebook",
@@ -137,7 +137,9 @@ function App() {
     return (
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <Router isNotFound={true} />
+          <Suspense fallback={<div className="p-6 text-center text-muted-foreground">جارٍ التحميل...</div>}>
+            <Router isNotFound={true} />
+          </Suspense>
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>
@@ -166,7 +168,9 @@ function App() {
                 <div className="flex gap-6 w-full">
                   <div className="flex-1">
                     <div className="max-w-4xl mx-auto">
-                      <Router isNotFound={false} />
+                      <Suspense fallback={<div className="p-6 text-center text-muted-foreground">جارٍ التحميل...</div>}>
+                        <Router isNotFound={false} />
+                      </Suspense>
                     </div>
                   </div>
                   {showAds && <AdSidebar />}
