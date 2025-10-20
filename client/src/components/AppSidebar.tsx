@@ -1,9 +1,11 @@
-import { Settings, FileSpreadsheet, FileText, FileCheck, ClipboardList, Calendar, HelpCircle, Info, BookOpen } from "lucide-react";
+import { Home, Settings, FileSpreadsheet, FileText, FileCheck, ClipboardList, Calendar, HelpCircle, Info, BookOpen } from "lucide-react";
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { useLocation } from "wouter";
+import { Logo } from "@/components/Logo";
 
 const menuItems = [
-  { title: "التجهيزات الأساسية", url: "/", icon: Settings, testId: "nav-settings" },
+  { title: "خدمتك", url: "/", icon: Home, testId: "nav-home" },
+  { title: "التجهيزات الأساسية", url: "/settings", icon: Settings, testId: "nav-settings" },
   { title: "سجل علامات جانبي", url: "/side-gradebook", icon: FileSpreadsheet, testId: "nav-side-gradebook" },
   { title: "سجل أداء وملاحظة", url: "/performance", icon: FileText, testId: "nav-performance" },
   { title: "دفتر علامات رئيسي", url: "/main-gradebook", icon: FileCheck, testId: "nav-main-gradebook" },
@@ -21,8 +23,10 @@ export function AppSidebar() {
     <Sidebar side="right">
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="text-lg font-bold mb-2">نظام إدارة السجلات</SidebarGroupLabel>
-          <SidebarGroupContent>
+          <div className="px-4 py-4 border-b border-border">
+            <Logo size="md" showText={true} />
+          </div>
+          <SidebarGroupContent className="mt-4">
             <SidebarMenu>
               {menuItems.map((item) => (
                 <SidebarMenuItem key={item.url}>

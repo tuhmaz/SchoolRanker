@@ -164,7 +164,7 @@ export default function Settings() {
   return (
     <div className="space-y-6" dir="rtl">
       {isProcessing && <LoadingOverlay message="جاري معالجة الملف..." />}
-      
+
       <div>
         <h1 className="text-3xl font-bold text-foreground">التجهيزات الأساسية</h1>
         <p className="text-muted-foreground mt-2">

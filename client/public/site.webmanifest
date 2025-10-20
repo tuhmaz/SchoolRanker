@@ -1,0 +1,31 @@
+{
+  "name": "خدمتك - نظام إدارة سجلات الطلبة",
+  "short_name": "خدمتك",
+  "description": "نظام متكامل لإدارة سجلات الطلبة والمعلمين متوافق مع منصة أجيال",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/apple-touch-icon.svg",
+      "sizes": "180x180",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/social/khadmatak-logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#14B8A6",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/",
+  "start_url": "/",
+  "lang": "ar",
+  "dir": "rtl"
+}

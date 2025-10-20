@@ -5,6 +5,18 @@ import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
 app.set("trust proxy", 1);
+app.disable("x-powered-by");
+
+// Redirect www to non-www
+app.use((req, res, next) => {
+  const host = req.headers.host;
+  if (host && host.startsWith('www.')) {
+    const newHost = host.replace('www.', '');
+    const protocol = req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+    return res.redirect(301, `${protocol}://${newHost}${req.url}`);
+  }
+  next();
+});
 
 const allowedOrigins = new Set([
   "http://localhost:3000",
@@ -12,6 +24,8 @@ const allowedOrigins = new Set([
   "http://localhost:5173",
   "https://khadmatak.com",
   "http://khadmatak.com",
+  "https://www.khadmatak.com",
+  "http://www.khadmatak.com",
 ]);
 
 app.use((req, res, next) => {
