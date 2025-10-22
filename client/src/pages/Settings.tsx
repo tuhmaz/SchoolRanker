@@ -3,6 +3,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger
+} from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FileUploadZone } from "@/components/FileUploadZone";
@@ -73,12 +84,14 @@ export default function Settings() {
       toast({
         title: "تم التحميل بنجاح",
         description: `تم استخلاص ${data.students.length} طالب/ة من ${data.classes.length} صف`,
+        variant: "success",
       });
 
       if (data.warnings && data.warnings.length > 0) {
         toast({
           title: "تحذيرات في الملف",
           description: data.warnings.join("\n"),
+          variant: "warning",
         });
       }
     } catch (error: any) {
@@ -119,34 +132,35 @@ export default function Settings() {
     toast({
       title: "تم الحفظ بنجاح",
       description: "تم حفظ جميع التجهيزات",
+      variant: "success",
     });
   };
 
-  const handleReset = () => {
-    if (confirm("هل أنت متأكد من مسح جميع التجهيزات؟")) {
-      setFile(null);
-      setTeacherName("");
-      setDirectorate("");
-      setSchool("");
-      setTown("");
-      setIsHomeroom(false);
-      setHomeroomClass("");
-      setClasses([]);
-      setParsedData(null);
-      setWarnings([]);
-      localStorage.removeItem('appSettings');
-      
-      toast({
-        title: "تم المسح",
-        description: "تم مسح جميع التجهيزات",
-      });
-    }
+  const handleResetConfirmed = () => {
+    setFile(null);
+    setTeacherName("");
+    setDirectorate("");
+    setSchool("");
+    setTown("");
+    setIsHomeroom(false);
+    setHomeroomClass("");
+    setClasses([]);
+    setParsedData(null);
+    setWarnings([]);
+    localStorage.removeItem('appSettings');
+    
+    toast({
+      title: "تم المسح",
+      description: "تم مسح جميع التجهيزات",
+      variant: "warning",
+    });
   };
 
   const handlePrintCover = () => {
     toast({
       title: "جاري الطباعة",
       description: "سيتم فتح نافذة الطباعة",
+      variant: "info",
     });
   };
 
@@ -307,38 +321,7 @@ export default function Settings() {
             {classes.length === 0 ? "سيتم عرض الصفوف بعد رفع ملف الطلبة" : "أضف المواد الدراسية لكل صف وشعبة"}
           </CardDescription>
         </CardHeader>
-        <div className="flex items-center justify-between p-4 border border-border rounded-lg">
-          <div>
-            <Label htmlFor="homeroom-switch" className="text-base font-medium">
-              هل أنت مربي صف؟
-            </Label>
-          </div>
-          <Switch
-            id="homeroom-switch"
-            checked={isHomeroom}
-            onCheckedChange={setIsHomeroom}
-            data-testid="switch-homeroom"
-          />
-        </div>
-
-        {isHomeroom && availableClasses.length > 0 && (
-          <div className="space-y-2">
-            <Label htmlFor="homeroom-class">اختر صفك</Label>
-            <Select value={homeroomClass} onValueChange={setHomeroomClass}>
-              <SelectTrigger id="homeroom-class" data-testid="select-homeroom-class">
-                <SelectValue placeholder="اختر صفك..." />
-              </SelectTrigger>
-              <SelectContent>
-                {availableClasses.map((cls) => (
-                  <SelectItem key={cls.id} value={cls.id}>
-                    {cls.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-        <CardContent className="mt-4">
+        <CardContent>
           <ClassSubjectManager
             classes={classes}
             onUpdate={setClasses}
@@ -352,10 +335,28 @@ export default function Settings() {
           <Save className="w-4 h-4" />
           حفظ التجهيزات
         </Button>
-        <Button variant="outline" onClick={handleReset} data-testid="button-reset">
-          <RefreshCcw className="w-4 h-4 ml-2" />
-          إعادة تعيين
-        </Button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="outline" data-testid="button-reset">
+              <RefreshCcw className="w-4 h-4 ml-2" />
+              إعادة تعيين
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent className="sm:max-w-[440px]" dir="rtl">
+            <AlertDialogHeader>
+              <AlertDialogTitle>تأكيد إعادة التعيين</AlertDialogTitle>
+              <AlertDialogDescription>
+                ستؤدي هذه الخطوة إلى حذف جميع التجهيزات الحالية، بما في ذلك بيانات الصفوف والطلاب المحفوظة. هل ترغب بالمتابعة؟
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="sm:justify-start">
+              <AlertDialogCancel>تراجع</AlertDialogCancel>
+              <AlertDialogAction onClick={handleResetConfirmed} className="bg-amber-600 hover:bg-amber-700">
+                مسح التجهيزات
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
         <Button
           variant="secondary"
           onClick={handlePrintCover}

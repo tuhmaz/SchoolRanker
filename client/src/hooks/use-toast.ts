@@ -1,9 +1,5 @@
 import * as React from "react"
-
-import type {
-  ToastActionElement,
-  ToastProps,
-} from "@/components/ui/toast"
+import { ToastActionElement, type ToastProps } from "@/components/ui/toast"
 
 const TOAST_LIMIT = 1
 const TOAST_REMOVE_DELAY = 1000000
@@ -21,13 +17,6 @@ const actionTypes = {
   DISMISS_TOAST: "DISMISS_TOAST",
   REMOVE_TOAST: "REMOVE_TOAST",
 } as const
-
-let count = 0
-
-function genId() {
-  count = (count + 1) % Number.MAX_SAFE_INTEGER
-  return count.toString()
-}
 
 type ActionType = typeof actionTypes
 
@@ -49,6 +38,13 @@ type Action =
       toastId?: ToasterToast["id"]
     }
 
+let count = 0
+
+function genId() {
+  count = (count + 1) % Number.MAX_SAFE_INTEGER
+  return count.toString()
+}
+
 interface State {
   toasts: ToasterToast[]
 }
@@ -59,15 +55,12 @@ const addToRemoveQueue = (toastId: string) => {
   if (toastTimeouts.has(toastId)) {
     return
   }
-
   const timeout = setTimeout(() => {
-    toastTimeouts.delete(toastId)
     dispatch({
       type: "REMOVE_TOAST",
       toastId: toastId,
     })
   }, TOAST_REMOVE_DELAY)
-
   toastTimeouts.set(toastId, timeout)
 }
 
@@ -139,16 +132,12 @@ function dispatch(action: Action) {
 
 type Toast = Omit<ToasterToast, "id">
 
-function toast({ ...props }: Toast) {
+const dismiss = (toastId?: string) => dispatch({ type: "DISMISS_TOAST", toastId })
+
+const updateToast = (toast: Partial<ToasterToast>) => dispatch({ type: "UPDATE_TOAST", toast })
+
+function toast({ ...props }: Omit<ToasterToast, "id">) {
   const id = genId()
-
-  const update = (props: ToasterToast) =>
-    dispatch({
-      type: "UPDATE_TOAST",
-      toast: { ...props, id },
-    })
-  const dismiss = () => dispatch({ type: "DISMISS_TOAST", toastId: id })
-
   dispatch({
     type: "ADD_TOAST",
     toast: {
@@ -156,15 +145,18 @@ function toast({ ...props }: Toast) {
       id,
       open: true,
       onOpenChange: (open) => {
-        if (!open) dismiss()
+        if (!open) dismiss(id)
       },
     },
   })
 
+  addToRemoveQueue(id)
+
   return {
     id: id,
-    dismiss,
-    update,
+    dismiss: () => dismiss(id),
+    update: (props: Partial<ToasterToast>) =>
+      updateToast({ ...props, id }),
   }
 }
 
@@ -184,8 +176,9 @@ function useToast() {
   return {
     ...state,
     toast,
-    dismiss: (toastId?: string) => dispatch({ type: "DISMISS_TOAST", toastId }),
+    dismiss,
+    update: updateToast,
   }
 }
 
-export { useToast, toast }
+export { useToast, toast, dismiss, updateToast as update }
