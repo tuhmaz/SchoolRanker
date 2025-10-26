@@ -152,7 +152,7 @@ export default function MainGradebook() {
       <div>
         <h1 className="text-3xl font-bold text-foreground">إنشاء دفتر علامات رئيسي</h1>
         <p className="text-muted-foreground mt-2">
-          تأكد من أن جميع البيانات في صفحة "التجهيزات" صحيحة ومحفوظة قبل المتابعة. يتم الاعتماد على القوالب الأصلية المناسبة: `templates/alem_b.xlsx` (روضة–رابع) و`templates/alem_a.xlsx` (خامس–ثاني ثانوي).
+          تأكد من أن جميع البيانات في صفحة "التجهيزات" صحيحة ومحفوظة قبل المتابعة. <span className="text-red-600 font-medium">تم تحديث القوالب لتصبح متوافقة مع الهوامش وجاهزة للطباعة المباشرة.</span>
         </p>
       </div>
 
@@ -184,7 +184,7 @@ export default function MainGradebook() {
       <Card>
         <CardHeader>
           <CardTitle>دفتر العلامات الرئيسي</CardTitle>
-          <CardDescription>يتم إنشاء الملف باستخدام القالب المناسب (`alem_b.xlsx` للصفوف الدنيا، `alem_a.xlsx` للصفوف العليا) مع جميع المواد والشعب.</CardDescription>
+          <CardDescription>يتم إنشاء الملف باستخدام القالب المناسب مع جميع المواد والشعب.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="bg-accent/50 rounded-lg p-6 text-center">
