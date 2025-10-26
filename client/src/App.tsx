@@ -9,6 +9,8 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { StructuredData } from "@/components/StructuredData";
 import { Logo } from "@/components/Logo";
+import { Canonical } from "@/components/Canonical";
+import { MetaTags } from "./components/MetaTags";
 import Home from "@/pages/Home";
 const Settings = lazy(() => import("@/pages/Settings"));
 const SideGradebook = lazy(() => import("@/pages/SideGradebook"));
@@ -127,6 +129,9 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <Suspense fallback={<div className="p-6 text-center text-muted-foreground">جارٍ التحميل...</div>}>
+            {/* Inject meta and canonical for 404 route too */}
+            <MetaTags isNotFound />
+            <Canonical />
             <Router isNotFound={true} />
           </Suspense>
           <Toaster />
@@ -138,6 +143,9 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
+        {/* Inject route-specific meta and canonical in normal layout */}
+      <MetaTags />
+      <Canonical />
         <StructuredData type="Organization" />
         <StructuredData type="WebApplication" />
         <StructuredData type="FAQPage" data={faqData} />

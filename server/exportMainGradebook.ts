@@ -50,17 +50,22 @@ interface WorksheetPosition {
 }
 
 const ARABIC_DIGIT_MAP: Record<string, string> = {
-  "٠": "0",
-  "١": "1",
-  "٢": "2",
-  "٣": "3",
-  "٤": "4",
-  "٥": "5",
-  "٦": "6",
-  "٧": "7",
-  "٨": "8",
-  "٩": "9",
+  "\u0660": "0",
+  "\u0661": "1",
+  "\u0662": "2",
+  "\u0663": "3",
+  "\u0664": "4",
+  "\u0665": "5",
+  "\u0666": "6",
+  "\u0667": "7",
+  "\u0668": "8",
+  "\u0669": "9",
 };
+
+const normalizeArabicDigits = (value: string): string => {
+  return value.replace(/[\u0660-\u0669]/g, (digit) => ARABIC_DIGIT_MAP[digit] ?? digit);
+};
+
 
 // ترتيب الكلمات المفتاحية من الأطول للأقصر لتجنب التطابقات الجزئية
 // مثلاً: "ثاني ثانوي" يجب أن يُفحص قبل "ثاني" لتجنب الخلط بين الصف الثاني والثاني ثانوي
@@ -172,8 +177,164 @@ const cellValueToString = (value: ExcelJS.CellValue | undefined): string | undef
 const getNumericCellValue = (cell: ExcelJS.Cell): number | null => {
   const raw = cellValueToString(cell.value as ExcelJS.CellValue | undefined);
   if (!raw) return null;
-  const parsed = Number.parseFloat(raw.replace(/[^\d.-]/g, ""));
+  const normalized = normalizeArabicDigits(raw);
+  const cleaned = normalized.replace(/[^\d.-]/g, "");
+  if (!cleaned) return null;
+  const parsed = Number.parseFloat(cleaned);
   return Number.isFinite(parsed) ? parsed : null;
+};
+
+const REFERENCE_LABEL_PATTERN = /[–—-]\s*([0-9]{1,4})\s*[–—-]/;
+
+const extractReferenceNumberFromLabel = (value?: string): number | null => {
+  if (!value) return null;
+  const normalized = normalizeArabicDigits(value);
+  const match = normalized.match(REFERENCE_LABEL_PATTERN);
+  if (!match) return null;
+  const parsed = Number.parseInt(match[1], 10);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const collectHeaderReferenceNumbers = (
+  sheet: ExcelJS.Worksheet | undefined,
+  refMap: Map<number, { sheet: ExcelJS.Worksheet; row: number }>,
+): number => {
+  if (!sheet) return 0;
+  let added = 0;
+  sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+    row.eachCell({ includeEmpty: false }, (cell) => {
+      const refNumber = extractReferenceNumberFromLabel(
+        cellValueToString(cell.value as ExcelJS.CellValue | undefined),
+      );
+      if (refNumber != null && !refMap.has(refNumber)) {
+        refMap.set(refNumber, { sheet, row: rowNumber });
+        added++;
+      }
+    });
+  });
+  return added;
+};
+
+// دالة مساعدة: تعيين قيمة الخلية مع الحفاظ على التنسيق
+const setCellPreserveStyle = (sheet: ExcelJS.Worksheet, addr: string | [number, number], value: ExcelJS.CellValue) => {
+  const cell = typeof addr === "string" ? sheet.getCell(addr) : sheet.getCell(addr[0], addr[1]);
+  const prevStyle = cell.style ? { ...cell.style } : undefined;
+  const prevFont = cell.font ? { ...cell.font } : undefined;
+  const prevAlignment = cell.alignment ? { ...cell.alignment } : undefined;
+  const prevBorder = cell.border ? { ...cell.border } : undefined;
+  const prevFill = cell.fill ? { ...(cell.fill as any) } : undefined;
+
+  cell.value = value;
+
+  if (prevStyle) cell.style = prevStyle;
+  if (prevFont) cell.font = prevFont as ExcelJS.Font;
+  if (prevAlignment) cell.alignment = prevAlignment;
+  if (prevBorder) cell.border = prevBorder;
+  if (prevFill) cell.fill = prevFill as ExcelJS.Fill;
+};
+
+// دالة شاملة: نسخ جميع إعدادات القالب إلى الملف الناتج
+const preserveTemplateSettings = (templateWorkbook: ExcelJS.Workbook, outputWorkbook: ExcelJS.Workbook) => {
+  console.log("🔧 Preserving template settings...");
+  
+  // نسخ إعدادات المصنف العامة
+  if (templateWorkbook.properties) {
+    outputWorkbook.properties = { ...templateWorkbook.properties };
+  }
+  
+  // نسخ إعدادات كل ورقة عمل باستخدام حلقة for
+  for (let index = 0; index < templateWorkbook.worksheets.length; index++) {
+    const templateSheet = templateWorkbook.worksheets[index];
+    const outputSheet = outputWorkbook.worksheets[index];
+    if (!outputSheet || !templateSheet) continue;
+    
+    console.log(`  📄 Processing sheet ${index + 1}: ${templateSheet.name}`);
+    
+    // 1. نسخ أبعاد الصفوف
+    templateSheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
+      if (row.height !== undefined) {
+        const outputRow = outputSheet.getRow(rowNumber);
+        outputRow.height = row.height;
+      }
+    });
+    
+    // 2. نسخ أبعاد الأعمدة
+    if (templateSheet.columns && Array.isArray(templateSheet.columns)) {
+      templateSheet.columns.forEach((templateCol, colIndex) => {
+        if (templateCol && colIndex >= 0) {
+          const colNumber = colIndex + 1;
+          const outputCol = outputSheet.getColumn(colNumber);
+          if (templateCol.width !== undefined) outputCol.width = templateCol.width;
+          if (templateCol.style) outputCol.style = { ...templateCol.style };
+          if (templateCol.hidden !== undefined) outputCol.hidden = templateCol.hidden;
+          if (templateCol.outlineLevel !== undefined) outputCol.outlineLevel = templateCol.outlineLevel;
+        }
+      });
+    }
+    
+    // 3. نسخ إعدادات الطباعة (pageSetup)
+    if (templateSheet.pageSetup) {
+      const adjustedScale = 90;
+      outputSheet.pageSetup = {
+        ...templateSheet.pageSetup,
+        margins: templateSheet.pageSetup.margins ? { ...templateSheet.pageSetup.margins } : undefined,
+        orientation: templateSheet.pageSetup.orientation,
+        paperSize: templateSheet.pageSetup.paperSize,
+        scale: adjustedScale,
+        fitToPage: false,
+        fitToWidth: templateSheet.pageSetup.fitToWidth,
+        fitToHeight: templateSheet.pageSetup.fitToHeight,
+        blackAndWhite: templateSheet.pageSetup.blackAndWhite,
+        draft: templateSheet.pageSetup.draft,
+        cellComments: templateSheet.pageSetup.cellComments,
+        errors: templateSheet.pageSetup.errors,
+        horizontalDpi: templateSheet.pageSetup.horizontalDpi,
+        verticalDpi: templateSheet.pageSetup.verticalDpi,
+        horizontalCentered: templateSheet.pageSetup.horizontalCentered,
+        verticalCentered: templateSheet.pageSetup.verticalCentered,
+      };
+      
+      // الحفاظ على حدود الطباعة من القالب مع تنقية بسيطة
+      const tplAreaRaw = (templateSheet.pageSetup as any)?.printArea;
+      if (tplAreaRaw && typeof tplAreaRaw === 'string') {
+        const firstRange = tplAreaRaw.split(',')[0].trim();
+        const sanitized = firstRange.replace(/\$/g, '');
+        outputSheet.pageSetup.printArea = sanitized;
+      }
+    }
+    
+    // 4. نسخ إعدادات العرض (views)
+    if (templateSheet.views && templateSheet.views.length > 0) {
+      const sanitizedViews = templateSheet.views.map((v: any) => {
+        const nv: any = {};
+        if (v.state && (v.state === 'normal' || v.state === 'frozen' || v.state === 'split')) nv.state = v.state;
+        if (typeof v.rightToLeft !== 'undefined') nv.rightToLeft = v.rightToLeft;
+        if (typeof v.activeCell !== 'undefined') nv.activeCell = v.activeCell;
+        if (typeof v.showRuler !== 'undefined') nv.showRuler = v.showRuler;
+        if (typeof v.showRowColHeaders !== 'undefined') nv.showRowColHeaders = v.showRowColHeaders;
+        if (typeof v.showGridLines !== 'undefined') nv.showGridLines = v.showGridLines;
+        if (typeof v.zoomScale !== 'undefined') nv.zoomScale = v.zoomScale;
+        if (typeof v.zoomScaleNormal !== 'undefined') nv.zoomScaleNormal = v.zoomScaleNormal;
+        if (typeof v.xSplit !== 'undefined') nv.xSplit = v.xSplit;
+        if (typeof v.ySplit !== 'undefined') nv.ySplit = v.ySplit;
+        if (typeof v.topLeftCell !== 'undefined') nv.topLeftCell = v.topLeftCell;
+        return nv;
+      });
+      outputSheet.views = sanitizedViews as any;
+    }
+    
+    // 5. نسخ خصائص الورقة العامة
+    if (templateSheet.properties) {
+      outputSheet.properties = { ...templateSheet.properties };
+    }
+    
+    // 6. نسخ إعدادات التجميد (state)
+    if (templateSheet.state) {
+      outputSheet.state = templateSheet.state;
+    }
+  }
+  
+  console.log("✅ All template settings preserved successfully");
 };
 
 export interface MainGradebookResult {
@@ -385,6 +546,13 @@ export async function generateMainGradebook(payload: MainGradebookPayload): Prom
   });
 
   if (refMap.size === 0) {
+    console.log("[fallback] Legacy reference columns empty. Scanning header labels...");
+    sheetsToSearch.forEach((sheet, index) => {
+      const added = collectHeaderReferenceNumbers(sheet, refMap);
+      console.log(`  [fallback] Header scan sheet ${index + 1}: Found ${added} references via labels`);
+    });
+  }
+  if (refMap.size === 0) {
     throw new Error("تعذر العثور على أرقام المراجع داخل القالب");
   }
 
@@ -441,12 +609,12 @@ export async function generateMainGradebook(payload: MainGradebookPayload): Prom
 
   headerSheets.forEach((sheet) => {
     if (!sheet) return;
-    sheet.getCell("B1").value = payload.directorate ?? "";
-    sheet.getCell("B2").value = payload.town ?? "";
-    sheet.getCell("B3").value = payload.school ?? "";
-    sheet.getCell("B4").value = classesAndDivisions;
-    sheet.getCell("B5").value = allSubjects;
-    sheet.getCell("B6").value = payload.teacherName ?? "";
+    setCellPreserveStyle(sheet, "B1", payload.directorate ?? "");
+    setCellPreserveStyle(sheet, "B2", payload.town ?? "");
+    setCellPreserveStyle(sheet, "B3", payload.school ?? "");
+    setCellPreserveStyle(sheet, "B4", classesAndDivisions);
+    setCellPreserveStyle(sheet, "B5", allSubjects);
+    setCellPreserveStyle(sheet, "B6", payload.teacherName ?? "");
   });
 
   let lastUsedRef: number | null = null;
@@ -493,26 +661,42 @@ export async function generateMainGradebook(payload: MainGradebookPayload): Prom
 
           const classLabel = `الصف : ${group.className ?? ""}`.trim();
           const divisionLabel = `الشعبة (${division.division ?? ""})`;
-          sheet.getCell(`D${row}`).value = classLabel;
-          sheet.getCell(`I${row}`).value = divisionLabel;
-          sheet.getCell(row, SUBJECT_VALUE_COLUMN).value = subjectName;
+          
+          // تحديد صف الرأس الفعلي بحسب النموذج
+          const headerRow = row + 1;
+
+          // تحديد مواقع الطباعة الصحيحة حسب نوع النموذج
+          // الكتابة وفق مواضع النموذج الأصلي
+          setCellPreserveStyle(sheet, `D${headerRow}`, classLabel); // ضمن الدمج D:H
+          setCellPreserveStyle(sheet, `I${headerRow}`, divisionLabel); // خلية مفردة I
+          setCellPreserveStyle(sheet, [headerRow, SUBJECT_VALUE_COLUMN], subjectName); // ضمن الدمج O:T
 
           const subjectRef = findNextAvailableRef(currentRef + 1);
           if (subjectRef !== null) {
             const subjectSlot = refMap.get(subjectRef);
             if (subjectSlot) {
-              subjectSlot.sheet.getCell(`D${subjectSlot.row}`).value = classLabel;
-              subjectSlot.sheet.getCell(`I${subjectSlot.row}`).value = divisionLabel;
-              subjectSlot.sheet.getCell(subjectSlot.row, SUBJECT_VALUE_COLUMN).value = subjectName;
+              const subjectHeaderRow = subjectSlot.row + 1;
+              // تحديث مواقع الطباعة في الصفحة الثانية أيضاً
+              if (templateFilename === "alem_b.xlsx") {
+                // للصفوف الدنيا (نموذج alem_b.xlsx)
+                subjectSlot.sheet.getCell(`D${subjectHeaderRow}`).value = classLabel; // ضمن الدمج D:H
+                subjectSlot.sheet.getCell(`I${subjectHeaderRow}`).value = divisionLabel; // خلية مفردة I
+                subjectSlot.sheet.getCell(subjectHeaderRow, SUBJECT_VALUE_COLUMN).value = subjectName; // ضمن الدمج O:T
+              } else {
+                // للصفوف العليا - نموذج alem_a.xlsx
+                subjectSlot.sheet.getCell(`D${subjectHeaderRow}`).value = classLabel;
+                subjectSlot.sheet.getCell(`I${subjectHeaderRow}`).value = divisionLabel;
+                subjectSlot.sheet.getCell(subjectHeaderRow, SUBJECT_VALUE_COLUMN).value = subjectName;
+              }
             }
           }
 
           const studentsForPage = remainingStudents.splice(0, 25);
-          const studentStartRow = row + 5;
+          const studentStartRow = headerRow + 5; // بداية الأسماء بعد 5 صفوف من رأس الجدول
 
           studentsForPage.forEach((name, index) => {
-            sheet.getCell(`A${studentStartRow + index}`).value = studentIndex + index + 1;
-            sheet.getCell(`B${studentStartRow + index}`).value = name;
+            setCellPreserveStyle(sheet, `A${studentStartRow + index}`, studentIndex + index + 1);
+            setCellPreserveStyle(sheet, `B${studentStartRow + index}`, name);
           });
 
           studentIndex += studentsForPage.length;
@@ -534,6 +718,12 @@ export async function generateMainGradebook(payload: MainGradebookPayload): Prom
   const id = nanoid(10);
   const filename = `دفتر_العلامات_الرئيسي_${id}.xlsx`;
   const exportPath = path.resolve(exportsDir, filename);
+  
+  // حفظ جميع إعدادات القالب قبل الحفظ النهائي
+  const templateWorkbook = new ExcelJS.Workbook();
+  await templateWorkbook.xlsx.readFile(templatePath);
+  preserveTemplateSettings(templateWorkbook, workbook);
+  
   await workbook.xlsx.writeFile(exportPath);
 
   return { id, filename, exportPath };

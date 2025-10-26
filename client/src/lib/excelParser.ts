@@ -239,45 +239,76 @@ export async function parseMinistryFile(file: File): Promise<ParsedData> {
           let classNameSource: ValueSource = 'direct';
           let divisionSource: ValueSource = 'direct';
 
-          let className = readCell(rows, 6, [3, 2, 1, 0, 4]) || readCell(rows, 5, [3, 2, 1, 0, 4]);
-          if (!className) {
-            const fromRows = fallbackValueFromRows(rows, /الصف/, [5, 6, 4, 7]);
-            if (fromRows) {
-              className = fromRows;
-              classNameSource = 'row-label';
-            }
+          // قراءة بيانات الصف والشعبة والمادة الدراسية من الملف الرئيسي
+        // أولاً نحاول قراءة البيانات من الملف الرئيسي (EL_StudentInfoReport.xls)
+        let className = readCell(rows, 6, [3, 2, 1, 0, 4]) || readCell(rows, 5, [3, 2, 1, 0, 4]);
+        if (!className) {
+          const fromRows = fallbackValueFromRows(rows, /الصف/, [5, 6, 4, 7]);
+          if (fromRows) {
+            className = fromRows;
+            classNameSource = 'row-label';
           }
-          if (!className) {
-            const scanned = scanForLabelValue(rows, [/الصف/], {
-              maxRows: 25,
-              invalidValuePattern: /(اسم|رقم|تاريخ|حالة|عنوان|هاتف|الجنسية|مكان|كشف)/,
-            });
-            if (scanned) {
-              className = scanned;
-              classNameSource = 'row-label';
-            }
+        }
+        if (!className) {
+          const scanned = scanForLabelValue(rows, [/الصف/], {
+            maxRows: 25,
+            invalidValuePattern: /(اسم|رقم|تاريخ|حالة|عنوان|هاتف|الجنسية|مكان|كشف)/,
+          });
+          if (scanned) {
+            className = scanned;
+            classNameSource = 'row-label';
           }
+        }
+        // محاولة قراءة الصف من الملف الرئيسي
+        if (!className && firstSheetData) {
+          const classFromMainFile = scanForLabelValue(firstSheetData, [/الصف/], {
+            maxRows: 25,
+            invalidValuePattern: /(اسم|رقم|تاريخ|حالة|عنوان|هاتف|الجنسية|مكان|كشف)/,
+          });
+          if (classFromMainFile) {
+            className = classFromMainFile;
+            classNameSource = 'direct';
+          }
+        }
 
-          let division = readCell(rows, 14, [3, 2, 1, 0, 4]) || readCell(rows, 13, [3, 2, 1, 0, 4]);
-          if (!division) {
-            const fromRows = fallbackValueFromRows(rows, /الشعبة/, [13, 14, 12, 15]);
-            if (fromRows) {
-              division = fromRows;
-              divisionSource = 'row-label';
-            }
+        let division = readCell(rows, 14, [3, 2, 1, 0, 4]) || readCell(rows, 13, [3, 2, 1, 0, 4]);
+        if (!division) {
+          const fromRows = fallbackValueFromRows(rows, /الشعبة/, [13, 14, 12, 15]);
+          if (fromRows) {
+            division = fromRows;
+            divisionSource = 'row-label';
           }
-          if (!division) {
-            const scanned = scanForLabelValue(rows, [/الشعبة/], {
-              maxRows: 25,
-              invalidValuePattern: /(اسم|رقم|تاريخ|حالة|عنوان|هاتف|الجنسية|مكان)/,
-            });
-            if (scanned) {
-              division = scanned;
-              divisionSource = 'row-label';
-            }
+        }
+        if (!division) {
+          const scanned = scanForLabelValue(rows, [/الشعبة/], {
+            maxRows: 25,
+            invalidValuePattern: /(اسم|رقم|تاريخ|حالة|عنوان|هاتف|الجنسية|مكان)/,
+          });
+          if (scanned) {
+            division = scanned;
+            divisionSource = 'row-label';
           }
+        }
+        // محاولة قراءة الشعبة من الملف الرئيسي
+        if (!division && firstSheetData) {
+          const divisionFromMainFile = scanForLabelValue(firstSheetData, [/الشعبة/], {
+            maxRows: 25,
+            invalidValuePattern: /(اسم|رقم|تاريخ|حالة|عنوان|هاتف|الجنسية|مكان)/,
+          });
+          if (divisionFromMainFile) {
+            division = divisionFromMainFile;
+            divisionSource = 'direct';
+          }
+        }
 
-          let subject = scanForLabelValue(rows, [/(المبحث|المادة\s*الدراسية|المادة)/], 25);
+        let subject = scanForLabelValue(rows, [/(المبحث|المادة\s*الدراسية|المادة)/], 25);
+        // محاولة قراءة المادة الدراسية من الملف الرئيسي
+        if (!subject && firstSheetData) {
+          const subjectFromMainFile = scanForLabelValue(firstSheetData, [/(المبحث|المادة\s*الدراسية|المادة)/], 25);
+          if (subjectFromMainFile) {
+            subject = subjectFromMainFile;
+          }
+        }
 
           if (!className) {
             const parts = sheetName.split(' - ');

@@ -10,14 +10,10 @@ import { nanoid } from "nanoid";
 
 const viteLogger = createLogger();
 
-// Helper to get current directory with fallback
-const getCurrentDir = () => {
-  if (typeof import.meta.dirname !== 'undefined') {
-    return import.meta.dirname;
-  }
-  // Fallback for environments where import.meta.dirname is not available
-  return dirname(fileURLToPath(import.meta.url));
-};
+function getCurrentDir() {
+  const __filename = fileURLToPath(import.meta.url);
+  return dirname(__filename);
+}
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -28,6 +24,41 @@ export function log(message: string, source = "express") {
   });
 
   console.log(`${formattedTime} [${source}] ${message}`);
+}
+
+// Helper to inject canonical and update URL meta tags server-side
+function injectCanonical(html: string, pathname: string) {
+  const BASE = "https://khadmatak.com";
+  const href = `${BASE}${pathname || "/"}`;
+
+  let out = html;
+
+  // Update existing og:url
+  out = out.replace(
+    /(<meta[^>]*property=["']og:url["'][^>]*content=["'])([^"']+)(["'][^>]*>)/i,
+    `$1${href}$3`
+  );
+
+  // Update existing twitter:url
+  out = out.replace(
+    /(<meta[^>]*name=["']twitter:url["'][^>]*content=["'])([^"']+)(["'][^>]*>)/i,
+    `$1${href}$3`
+  );
+
+  // Ensure canonical link exists with correct href
+  if (/rel=["']canonical["']/i.test(out)) {
+    out = out.replace(
+      /(<link[^>]*rel=["']canonical["'][^>]*href=["'])([^"']+)(["'][^>]*>)/i,
+      `$1${href}$3`
+    );
+  } else {
+    out = out.replace(
+      /<\/head>/i,
+      `  <link rel="canonical" href="${href}" />\n</head>`
+    );
+  }
+
+  return out;
 }
 
 export async function setupVite(app: Express, server: Server) {
@@ -69,7 +100,9 @@ export async function setupVite(app: Express, server: Server) {
         `src="/src/main.tsx"`,
         `src="/src/main.tsx?v=${nanoid()}"`,
       );
-      const page = await vite.transformIndexHtml(url, template);
+      let page = await vite.transformIndexHtml(url, template);
+      // Inject canonical/URL meta based on request path in dev too
+      page = injectCanonical(page, req.path || "/");
       res.status(200).set({ "Content-Type": "text/html" }).end(page);
     } catch (e) {
       vite.ssrFixStacktrace(e as Error);
@@ -100,7 +133,7 @@ export function serveStatic(app: Express) {
   }));
 
   // fall through to index.html if the file doesn't exist
-  app.use("*", (req, res, next) => {
+  app.use("*", async (req, res, next) => {
     if (req.method !== "GET" || req.path.startsWith("/api")) {
       return next();
     }
@@ -110,6 +143,13 @@ export function serveStatic(app: Express) {
       return res.sendStatus(404);
     }
 
-    res.status(404).sendFile(indexPath);
+    try {
+      const html = await fs.promises.readFile(indexPath, "utf-8");
+      const page = injectCanonical(html, req.path || "/");
+      // Return 200 for SPA routes to allow proper indexing
+      res.status(200).set({ "Content-Type": "text/html" }).send(page);
+    } catch (e) {
+      res.status(500).send("Internal Server Error");
+    }
   });
 }
