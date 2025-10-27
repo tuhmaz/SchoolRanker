@@ -607,15 +607,7 @@ export async function generateMainGradebook(payload: MainGradebookPayload): Prom
     .filter(Boolean)
     .join(", ");
 
-  headerSheets.forEach((sheet) => {
-    if (!sheet) return;
-    setCellPreserveStyle(sheet, "B1", payload.directorate ?? "");
-    setCellPreserveStyle(sheet, "B2", payload.town ?? "");
-    setCellPreserveStyle(sheet, "B3", payload.school ?? "");
-    setCellPreserveStyle(sheet, "B4", classesAndDivisions);
-    setCellPreserveStyle(sheet, "B5", allSubjects);
-    setCellPreserveStyle(sheet, "B6", payload.teacherName ?? "");
-  });
+  // لا نقوم بتعبئة الأوراق الثانوية للحفاظ على تصميم القالب كما هو
 
   let lastUsedRef: number | null = null;
   let outOfSpace = false;
@@ -669,7 +661,8 @@ export async function generateMainGradebook(payload: MainGradebookPayload): Prom
           // الكتابة وفق مواضع النموذج الأصلي
           setCellPreserveStyle(sheet, `D${headerRow}`, classLabel); // ضمن الدمج D:H
           setCellPreserveStyle(sheet, `I${headerRow}`, divisionLabel); // خلية مفردة I
-          setCellPreserveStyle(sheet, [headerRow, SUBJECT_VALUE_COLUMN], subjectName); // ضمن الدمج O:T
+          const subjectDisplay = `المادة الدراسية : ${subjectName}`;
+          setCellPreserveStyle(sheet, [headerRow, SUBJECT_VALUE_COLUMN], subjectDisplay); // ضمن الدمج O:T
 
           const subjectRef = findNextAvailableRef(currentRef + 1);
           if (subjectRef !== null) {
@@ -681,12 +674,12 @@ export async function generateMainGradebook(payload: MainGradebookPayload): Prom
                 // للصفوف الدنيا (نموذج alem_b.xlsx)
                 subjectSlot.sheet.getCell(`D${subjectHeaderRow}`).value = classLabel; // ضمن الدمج D:H
                 subjectSlot.sheet.getCell(`I${subjectHeaderRow}`).value = divisionLabel; // خلية مفردة I
-                subjectSlot.sheet.getCell(subjectHeaderRow, SUBJECT_VALUE_COLUMN).value = subjectName; // ضمن الدمج O:T
+                subjectSlot.sheet.getCell(subjectHeaderRow, SUBJECT_VALUE_COLUMN).value = subjectDisplay; // ضمن الدمج O:T
               } else {
                 // للصفوف العليا - نموذج alem_a.xlsx
                 subjectSlot.sheet.getCell(`D${subjectHeaderRow}`).value = classLabel;
                 subjectSlot.sheet.getCell(`I${subjectHeaderRow}`).value = divisionLabel;
-                subjectSlot.sheet.getCell(subjectHeaderRow, SUBJECT_VALUE_COLUMN).value = subjectName;
+                subjectSlot.sheet.getCell(subjectHeaderRow, SUBJECT_VALUE_COLUMN).value = subjectDisplay;
               }
             }
           }
