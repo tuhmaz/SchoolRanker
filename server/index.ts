@@ -10,9 +10,10 @@ app.disable("x-powered-by");
 // Redirect www to non-www
 app.use((req, res, next) => {
   const host = req.headers.host;
-  if (host && host.startsWith('www.')) {
-    const newHost = host.replace('www.', '');
-    const protocol = req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+  if (host && host.startsWith("www.")) {
+    const newHost = host.replace("www.", "");
+    const protocol =
+      req.secure || req.headers["x-forwarded-proto"] === "https" ? "https" : "http";
     return res.redirect(301, `${protocol}://${newHost}${req.url}`);
   }
   next();
@@ -66,7 +67,6 @@ app.use((req, res, next) => {
   res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   res.setHeader("Content-Security-Policy", contentSecurityPolicy);
 
-  // Cache control headers for static assets
   if (req.url.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
     res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
   } else if (req.url.match(/\.(html|json)$/)) {
@@ -79,6 +79,7 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: false, limit: "50mb" }));
 
+// Logging middleware
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -97,11 +98,7 @@ app.use((req, res, next) => {
       if (capturedJsonResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
+      if (logLine.length > 80) logLine = logLine.slice(0, 79) + "…";
       log(logLine);
     }
   });
@@ -118,14 +115,10 @@ app.use((req, res, next) => {
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
-
     res.status(status).json({ message });
     throw err;
   });
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
   if (app.get("env") === "development") {
     await setupVite(app, server);
   } else {
@@ -162,20 +155,14 @@ app.use((req, res, next) => {
 
   const port = await findAvailablePort(preferredPort);
   log(`Found available port: ${port}`);
-  
-  server.listen(
-    {
-      port,
-      host,
-    },
-    () => {
-      if (port !== preferredPort) {
-        log(`preferred port ${preferredPort} in use, using ${port} instead`);
-      }
-      log(`✓ Server is running on http://${host}:${port}`);
+
+  server.listen({ port, host }, () => {
+    if (port !== preferredPort) {
+      log(`preferred port ${preferredPort} in use, using ${port} instead`);
     }
-  );
-  
+    log(`✓ Server is running on http://${host}:${port}`);
+  });
+
   server.on("error", (err: any) => {
     log(`Server error: ${err.message}`);
   });
