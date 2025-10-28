@@ -1,11 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Calendar, CalendarDays, CalendarRange } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Calendar, CalendarDays, CalendarRange } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { AttendanceStatus } from "@/types/attendance";
+import { Users } from "lucide-react";
 
 type Mode = "daily" | "weekly" | "monthly";
 
@@ -15,10 +18,38 @@ interface AttendanceCalendarProps {
   students: { id: string; name: string }[];
   attendanceByDate?: Record<string, { studentId: string; status: AttendanceStatus }[]>;
   onAttendanceChange?: (updates: Record<string, { studentId: string; present: boolean }[]>) => void;
+  disableDailyView?: boolean;
+  onChangesSaved?: () => void;
+  anchorMonth?: number;
+  anchorYear?: number;
+  allowedMonths?: number[];
 }
 
 const weekdayLabels = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس"];
 const weekdayOrder = [0, 1, 2, 3, 4];
+
+const columnHeaderClasses = [
+  "bg-primary/20 text-primary",
+  "bg-chart-1/20 text-chart-1",
+  "bg-secondary/30 text-secondary-foreground",
+  "bg-accent/20 text-accent-foreground",
+  "bg-muted/50 text-muted-foreground",
+];
+
+const columnCellClasses = [
+  "bg-primary/10",
+  "bg-chart-1/10",
+  "bg-secondary/10",
+  "bg-accent/10",
+  "bg-muted/20",
+];
+
+const weekAccentPalette = [
+  { header: "bg-primary/10 text-primary", border: "border-primary/40" },
+  { header: "bg-chart-1/10 text-chart-1", border: "border-chart-1/40" },
+  { header: "bg-amber-100 text-amber-900", border: "border-amber-300" },
+  { header: "bg-sky-100 text-sky-900", border: "border-sky-300" },
+];
 
 const arabicMonthNames: Record<number, string> = {
   1: "كانون الثاني",
@@ -85,17 +116,104 @@ const buildMonthlyWeeks = (days: Date[]) => {
     .map(([, value]) => value);
 };
 
-export function AttendanceCalendar({ students, attendanceByDate, onAttendanceChange }: AttendanceCalendarProps) {
-  const [mode, setMode] = useState<Mode>("daily");
+export function AttendanceCalendar({
+  students,
+  attendanceByDate,
+  onAttendanceChange,
+  disableDailyView = false,
+  onChangesSaved,
+  anchorMonth,
+  anchorYear,
+  allowedMonths,
+}: AttendanceCalendarProps) {
+  const availableModes: Mode[] = disableDailyView ? ["weekly", "monthly"] : ["daily", "weekly", "monthly"];
+  const initialMode: Mode = disableDailyView ? "weekly" : "daily";
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [anchorDate, setAnchorDate] = useState(() => {
     const base = new Date();
     base.setUTCHours(0, 0, 0, 0);
     return base;
   });
   const [matrix, setMatrix] = useState<AttendanceMatrix>({});
+  const [collapsedWeeks, setCollapsedWeeks] = useState<Record<string, boolean>>({});
+  const [weeklyCollapsed, setWeeklyCollapsed] = useState<Record<string, boolean>>({});
+
+  const allowedMonthList = useMemo(() => {
+    if (!allowedMonths || allowedMonths.length === 0) return undefined;
+    const seen = new Set<number>();
+    const list: number[] = [];
+    allowedMonths.forEach((month) => {
+      if (month >= 1 && month <= 12 && !seen.has(month)) {
+        seen.add(month);
+        list.push(month);
+      }
+    });
+    return list.length > 0 ? list : undefined;
+  }, [allowedMonths]);
+
+  const allowedMonthSequence = useMemo(() => {
+    if (!allowedMonthList || allowedMonthList.length === 0) return undefined;
+    let offset = 0;
+    let previous = allowedMonthList[0];
+    return allowedMonthList.map((month, index) => {
+      if (index > 0) {
+        if (month < previous) {
+          offset += 1;
+        }
+        previous = month;
+      }
+      return { month, offset, index } as const;
+    });
+  }, [allowedMonthList]);
+
+  const allowedMonthInfo = useMemo(() => {
+    if (!allowedMonthSequence) return undefined;
+    const map = new Map<number, { index: number; offset: number }>();
+    allowedMonthSequence.forEach(({ month, offset, index }) => {
+      if (!map.has(month)) {
+        map.set(month, { index, offset });
+      }
+    });
+    return map;
+  }, [allowedMonthSequence]);
+
+  const baseYearRef = useRef<number>(anchorYear && !Number.isNaN(anchorYear) ? anchorYear : anchorDate.getUTCFullYear());
+
+  useEffect(() => {
+    if (disableDailyView && mode === "daily") {
+      setMode("weekly");
+    }
+  }, [disableDailyView, mode]);
+
+  useEffect(() => {
+    if (allowedMonthSequence && allowedMonthSequence.length > 0) {
+      const currentInfo = allowedMonthInfo?.get(anchorDate.getUTCMonth() + 1);
+      if (currentInfo) {
+        baseYearRef.current = anchorDate.getUTCFullYear() - currentInfo.offset;
+      } else if (anchorYear && !Number.isNaN(anchorYear)) {
+        baseYearRef.current = anchorYear;
+      }
+    } else if (anchorYear && !Number.isNaN(anchorYear)) {
+      baseYearRef.current = anchorYear;
+    }
+  }, [allowedMonthSequence, allowedMonthInfo, anchorDate, anchorYear]);
+
+  const lastSyncedAnchor = useRef<{ month?: number; year?: number }>({
+    month: anchorMonth,
+    year: anchorYear,
+  });
+
+  const anchorKey = useMemo(
+    () => `${anchorDate.getUTCFullYear()}-${anchorDate.getUTCMonth()}`,
+    [anchorDate],
+  );
+
+  useEffect(() => {
+    setCollapsedWeeks({});
+  }, [anchorKey]);
 
   const selectedDates = useMemo(() => {
-    if (mode === "daily") {
+    if (!disableDailyView && mode === "daily") {
       return [new Date(anchorDate)];
     }
 
@@ -108,6 +226,18 @@ export function AttendanceCalendar({ students, attendanceByDate, onAttendanceCha
 
     return getTeachingDaysOfMonth(anchorDate);
   }, [mode, anchorDate]);
+
+  useEffect(() => {
+    if (mode !== "weekly") return;
+    setWeeklyCollapsed((prev) => {
+      const next: Record<string, boolean> = {};
+      selectedDates.forEach((date) => {
+        const iso = formatIso(date);
+        next[iso] = prev[iso] ?? true;
+      });
+      return next;
+    });
+  }, [mode, selectedDates]);
 
   const selectedDateIsos = useMemo(() => selectedDates.map(formatIso), [selectedDates]);
 
@@ -152,17 +282,18 @@ export function AttendanceCalendar({ students, attendanceByDate, onAttendanceCha
     (updater: (prev: AttendanceMatrix) => AttendanceMatrix) => {
       setMatrix((prev) => {
         const next = updater(prev);
-        if (mode === "daily") {
+        if (!disableDailyView && mode === "daily") {
           emitChange(next);
         }
         return next;
       });
     },
-    [emitChange, mode],
+    [emitChange, mode, disableDailyView],
   );
 
   const handleApplyChanges = () => {
     emitChange(matrix);
+    onChangesSaved?.();
   };
 
   const toggleCell = (studentId: string, dateIso: string) => {
@@ -190,16 +321,53 @@ export function AttendanceCalendar({ students, attendanceByDate, onAttendanceCha
   };
 
   const navigate = (direction: 1 | -1) => {
-    const next = new Date(anchorDate);
-    next.setUTCHours(0, 0, 0, 0);
-    if (mode === "daily") {
-      next.setUTCDate(next.getUTCDate() + direction);
-    } else if (mode === "weekly") {
-      next.setUTCDate(next.getUTCDate() + direction * 7);
-    } else {
-      next.setUTCMonth(next.getUTCMonth() + direction);
-    }
-    setAnchorDate(next);
+    setAnchorDate((prev) => {
+      const next = new Date(prev);
+      next.setUTCHours(0, 0, 0, 0);
+
+      if (mode === "daily") {
+        next.setUTCDate(next.getUTCDate() + direction);
+      } else if (mode === "weekly") {
+        next.setUTCDate(next.getUTCDate() + direction * 7);
+      } else {
+        next.setUTCMonth(next.getUTCMonth() + direction);
+        next.setUTCDate(1);
+      }
+
+      if (!allowedMonthSequence || allowedMonthSequence.length === 0 || !allowedMonthInfo) {
+        return next;
+      }
+
+      const finalize = (targetMonth: number, targetOffset: number) => {
+        const year = baseYearRef.current + targetOffset;
+        const date = new Date(Date.UTC(year, targetMonth - 1, 1));
+        date.setUTCHours(0, 0, 0, 0);
+        return date;
+      };
+
+      const candidateMonth = next.getUTCMonth() + 1;
+      const candidateInfo = allowedMonthInfo.get(candidateMonth);
+      if (candidateInfo) {
+        return finalize(candidateMonth, candidateInfo.offset);
+      }
+
+      const prevMonth = prev.getUTCMonth() + 1;
+      const prevInfo = allowedMonthInfo.get(prevMonth);
+      if (!prevInfo) {
+        const first = allowedMonthSequence[0];
+        return finalize(first.month, first.offset);
+      }
+
+      let targetIndex = prevInfo.index;
+      if (direction === 1) {
+        targetIndex = Math.min(targetIndex + 1, allowedMonthSequence.length - 1);
+      } else {
+        targetIndex = Math.max(targetIndex - 1, 0);
+      }
+
+      const target = allowedMonthSequence[targetIndex];
+      return finalize(target.month, target.offset);
+    });
   };
 
   const rangeLabel = useMemo(() => {
@@ -234,7 +402,21 @@ export function AttendanceCalendar({ students, attendanceByDate, onAttendanceCha
   const absentCount = totalCells - presentCount;
   const percentage = totalCells > 0 ? Math.round((presentCount / totalCells) * 100) : 100;
 
-  const dailyContent = mode === "daily" && selectedDateIsos[0]
+  const toggleWeekCollapse = useCallback((key: string) => {
+    setCollapsedWeeks((prev) => ({
+      ...prev,
+      [key]: !(prev[key] ?? true),
+    }));
+  }, []);
+
+  const toggleWeeklyCollapse = useCallback((iso: string) => {
+    setWeeklyCollapsed((prev) => ({
+      ...prev,
+      [iso]: !(prev[iso] ?? true),
+    }));
+  }, []);
+
+  const dailyContent = !disableDailyView && mode === "daily" && selectedDateIsos[0]
     ? (
       <div className="space-y-2 max-h-[420px] overflow-y-auto">
         {students.map((student, idx) => {
@@ -280,48 +462,113 @@ export function AttendanceCalendar({ students, attendanceByDate, onAttendanceCha
         });
 
         return (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] border-collapse text-center">
-              <thead>
-                <tr className="bg-muted/50">
-                  <th className="sticky right-0 bg-muted/50 px-3 py-2 text-sm font-medium">الطالب</th>
-                  {columns.map((date, idx) => (
-                    <th key={idx} className="px-3 py-2 text-sm font-medium">
-                      <div>{weekdayLabels[idx]}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {date ? formatArabicDate(date, false) : "—"}
+          <>
+            <div className="space-y-3 sm:hidden">
+              {columns.map((date, idx) => {
+                if (!date) {
+                  return (
+                    <div
+                      key={idx}
+                      className="rounded-lg border border-dashed border-border/70 p-4 text-center text-sm text-muted-foreground"
+                    >
+                      <div className="font-medium">{weekdayLabels[idx]}</div>
+                      <div className="text-xs">لا يوجد دوام</div>
+                    </div>
+                  );
+                }
+
+                const iso = formatIso(date);
+                const isCollapsed = weeklyCollapsed[iso] ?? true;
+                return (
+                  <div key={idx} className="rounded-xl border border-border/60 bg-background p-2 shadow-sm">
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-right"
+                      onClick={() => toggleWeeklyCollapse(iso)}
+                    >
+                      <div>
+                        <div className="text-sm font-semibold">{weekdayLabels[idx]}</div>
+                        <div className="text-xs text-muted-foreground">{formatArabicDate(date, false)}</div>
                       </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {students.map((student) => (
-                  <tr key={student.id} className="odd:bg-background even:bg-muted/10">
-                    <td className="sticky right-0 bg-background px-3 py-2 text-right font-medium">
-                      {student.name}
-                    </td>
-                    {columns.map((date, idx) => {
-                      if (!date) {
+                      <ChevronDown
+                        className={cn(
+                          "h-4 w-4 transition-transform duration-150",
+                          isCollapsed ? "rotate-180" : "rotate-0",
+                        )}
+                      />
+                    </button>
+                    {!isCollapsed ? (
+                      <div className="mt-2 space-y-2 px-2 pb-2">
+                        {students.map((student) => {
+                          const present = matrix[student.id]?.[iso] ?? true;
+                          return (
+                            <label
+                              key={student.id}
+                              className="flex items-center justify-between gap-2 rounded-md border border-border/60 bg-muted/20 px-2 py-1 text-xs"
+                            >
+                              <span className="truncate font-medium">{student.name}</span>
+                              <Checkbox
+                                checked={present}
+                                onCheckedChange={() => toggleCell(student.id, iso)}
+                                className="h-4 w-4"
+                              />
+                            </label>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="hidden overflow-x-auto sm:block">
+              <table className="w-full min-w-[640px] border-collapse text-center">
+                <thead>
+                  <tr className="bg-muted/60">
+                    <th className="sticky right-0 bg-muted/60 px-3 py-2 text-sm font-medium">الطالب</th>
+                    {columns.map((date, idx) => (
+                      <th
+                        key={idx}
+                        className={cn("px-3 py-2 text-sm font-medium", columnHeaderClasses[idx] ?? "")}
+                      >
+                        <div>{weekdayLabels[idx]}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {date ? formatArabicDate(date, false) : "—"}
+                        </div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {students.map((student, rowIdx) => (
+                    <tr key={student.id} className={rowIdx % 2 === 0 ? "bg-background" : "bg-muted/20"}>
+                      <td className="sticky right-0 bg-background px-3 py-2 text-right font-medium">
+                        {student.name}
+                      </td>
+                      {columns.map((date, idx) => {
+                        const tone = columnCellClasses[idx] ?? "";
+                        if (!date) {
+                          return (
+                            <td key={idx} className={cn("px-2 py-2 text-muted-foreground", tone)}>
+                              —
+                            </td>
+                          );
+                        }
+                        const iso = formatIso(date);
+                        const present = matrix[student.id]?.[iso] ?? true;
                         return (
-                          <td key={idx} className="px-2 py-2 text-muted-foreground">
-                            —
+                          <td key={idx} className={cn("px-2 py-2", tone)}>
+                            <Checkbox checked={present} onCheckedChange={() => toggleCell(student.id, iso)} />
                           </td>
                         );
-                      }
-                      const iso = formatIso(date);
-                      const present = matrix[student.id]?.[iso] ?? true;
-                      return (
-                        <td key={idx} className="px-2 py-2">
-                          <Checkbox checked={present} onCheckedChange={() => toggleCell(student.id, iso)} />
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         );
       })()
     : null;
@@ -331,80 +578,107 @@ export function AttendanceCalendar({ students, attendanceByDate, onAttendanceCha
         const weeks = buildMonthlyWeeks(selectedDates);
         return (
           <div className="space-y-6">
-            {weeks.map((week, weekIdx) => (
-              <div key={weekIdx} className="rounded-xl border border-border/60 shadow-sm overflow-hidden">
-                <div className="flex items-center justify-between bg-muted/40 px-4 py-2">
-                  <span className="font-semibold">الأسبوع {weekIdx + 1}</span>
-                  <span className="text-sm text-muted-foreground">
-                    {week
-                      .filter((day): day is Date => Boolean(day))
-                      .map((day) => formatArabicDate(day, false))
-                      .join(" – ") || "—"}
-                  </span>
-                </div>
-                <div className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-5">
-                  {week.map((date, idx) => {
-                    if (!date) {
-                      return (
-                        <div
-                          key={idx}
-                          className="rounded-lg border border-dashed border-border/70 p-4 text-sm text-muted-foreground flex flex-col items-center justify-center gap-2"
-                        >
-                          <span>{weekdayLabels[idx]}</span>
-                          <span className="text-xs">لا يوجد دوام</span>
-                        </div>
-                      );
-                    }
-                    const iso = formatIso(date);
-                    const presentForDay = students.reduce(
-                      (total, student) => (matrix[student.id]?.[iso] === false ? total : total + 1),
-                      0,
-                    );
-                    const saturation =
-                      presentForDay === students.length
-                        ? "bg-emerald-500/10 border-emerald-300/40"
-                        : presentForDay === 0
-                        ? "bg-destructive/10 border-destructive/40"
-                        : "bg-background";
-                    return (
-                      <div
-                        key={idx}
+            {weeks.map((week, weekIdx) => {
+              const palette = weekAccentPalette[weekIdx % weekAccentPalette.length];
+              const weekKey = `${anchorKey}-week-${weekIdx}`;
+              const isCollapsed = collapsedWeeks[weekKey] ?? true;
+              const activeDays = week.filter((day): day is Date => Boolean(day));
+
+              return (
+                <div
+                  key={weekIdx}
+                  className={cn("rounded-xl border shadow-sm overflow-hidden", palette.border ?? "border-border/60")}
+                >
+                  <button
+                    type="button"
+                    className={cn(
+                      "flex w-full items-center justify-between px-4 py-2 text-right",
+                      "transition-colors duration-150",
+                      palette.header ?? "bg-muted/40 text-foreground",
+                    )}
+                    onClick={() => toggleWeekCollapse(weekKey)}
+                  >
+                    <span className="font-semibold">الأسبوع {weekIdx + 1}</span>
+                    <span className="flex items-center gap-3 text-sm">
+                      <span className="text-xs md:text-sm text-muted-foreground truncate max-w-[120px]">
+                        {activeDays.length > 0
+                          ? activeDays.map((day) => formatArabicDate(day, false)).join(" – ")
+                          : "—"}
+                      </span>
+                      <ChevronDown
                         className={cn(
-                          "rounded-lg border p-4 transition-colors duration-150 shadow-sm",
-                          saturation,
+                          "h-4 w-4 transition-transform duration-150",
+                          isCollapsed ? "rotate-180" : "rotate-0",
                         )}
-                      >
-                        <div className="flex items-center justify-between text-sm font-semibold">
-                          <span>{weekdayLabels[idx]}</span>
-                          <span>{formatArabicDate(date, false)}</span>
-                        </div>
-                        <div className="mt-2 text-xs text-muted-foreground">
-                          {presentForDay}/{students.length} حاضر
-                        </div>
-                        <div className="mt-3 space-y-2 max-h-44 overflow-y-auto pr-1">
-                          {students.map((student) => {
-                            const present = matrix[student.id]?.[iso] ?? true;
-                            return (
-                              <label
-                                key={student.id}
-                                className="flex items-center justify-between gap-2 rounded-md border border-border/60 bg-background/80 px-2 py-1 text-xs"
-                              >
-                                <span className="truncate">{student.name}</span>
-                                <Checkbox
-                                  checked={present}
-                                  onCheckedChange={() => toggleCell(student.id, iso)}
-                                  className="h-4 w-4"
-                                />
-                              </label>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
+                      />
+                    </span>
+                  </button>
+                  {!isCollapsed ? (
+                    <div className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-5">
+                      {week.map((date, idx) => {
+                        if (!date) {
+                          return (
+                            <div
+                              key={idx}
+                              className="rounded-lg border border-dashed border-border/70 p-4 text-sm text-muted-foreground flex flex-col items-center justify-center gap-2"
+                            >
+                              <span>{weekdayLabels[idx]}</span>
+                              <span className="text-xs">لا يوجد دوام</span>
+                            </div>
+                          );
+                        }
+                        const iso = formatIso(date);
+                        const presentForDay = students.reduce(
+                          (total, student) => (matrix[student.id]?.[iso] === false ? total : total + 1),
+                          0,
+                        );
+                        const saturation =
+                          presentForDay === students.length
+                            ? "bg-emerald-500/10 border-emerald-300/40"
+                            : presentForDay === 0
+                            ? "bg-destructive/10 border-destructive/40"
+                            : "bg-background";
+                        return (
+                          <div
+                            key={idx}
+                            className={cn(
+                              "rounded-lg border p-4 transition-colors duration-150 shadow-sm",
+                              saturation,
+                            )}
+                          >
+                            <div className="flex items-center justify-between text-sm font-semibold">
+                              <span>{weekdayLabels[idx]}</span>
+                              <span>{formatArabicDate(date, false)}</span>
+                            </div>
+                            <div className="mt-2 text-xs text-muted-foreground">
+                              {presentForDay}/{students.length} حاضر
+                            </div>
+                            <div className="mt-3 space-y-2 max-h-44 overflow-y-auto pr-1">
+                              {students.map((student) => {
+                                const present = matrix[student.id]?.[iso] ?? true;
+                                return (
+                                  <label
+                                    key={student.id}
+                                    className="flex items-center justify-between gap-2 rounded-md border border-border/60 bg-background/80 px-2 py-1 text-xs"
+                                  >
+                                    <span className="truncate">{student.name}</span>
+                                    <Checkbox
+                                      checked={present}
+                                      onCheckedChange={() => toggleCell(student.id, iso)}
+                                      className="h-4 w-4"
+                                    />
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : null}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         );
       })()
@@ -414,22 +688,24 @@ export function AttendanceCalendar({ students, attendanceByDate, onAttendanceCha
     <div className="space-y-4" data-testid="attendance-calendar">
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col items-center justify-between sm:flex-row">
             <div>
               <CardTitle>تاريخ الحضور</CardTitle>
               <CardDescription>اختر النطاق الزمني ثم قم بتعديل حضور الطلبة عبر مربعات التحديد.</CardDescription>
             </div>
             <Tabs value={mode} onValueChange={(value) => setMode(value as Mode)}>
-              <TabsList className="grid grid-cols-3">
-                <TabsTrigger value="daily" className="gap-2">
-                  <Calendar className="w-4 h-4" /> يومي
+              <TabsList className="grid grid-cols-3 gap-1 text-xs sm:gap-2 sm:text-sm">
+                <TabsTrigger value="monthly" className="gap-2">
+                  <CalendarDays className="w-4 h-4" /> شهري
                 </TabsTrigger>
                 <TabsTrigger value="weekly" className="gap-2">
                   <CalendarRange className="w-4 h-4" /> أسبوعي
                 </TabsTrigger>
-                <TabsTrigger value="monthly" className="gap-2">
-                  <CalendarDays className="w-4 h-4" /> شهري
-                </TabsTrigger>
+                {!disableDailyView ? (
+                  <TabsTrigger value="daily" className="gap-2">
+                    <Calendar className="w-4 h-4" /> يومي
+                  </TabsTrigger>
+                ) : null}
               </TabsList>
             </Tabs>
           </div>
@@ -440,7 +716,10 @@ export function AttendanceCalendar({ students, attendanceByDate, onAttendanceCha
               <Button variant="outline" size="icon" onClick={() => navigate(-1)} data-testid="button-prev-range">
                 <ChevronRight className="w-4 h-4" />
               </Button>
-              <div className="px-4 py-2 bg-accent rounded-md min-w-[160px] text-center" data-testid="selected-range">
+              <div
+                className="px-2 py-1 bg-accent rounded-md min-w-[120px] max-w-[180px] truncate text-center text-xs sm:text-sm sm:min-w-[160px] sm:max-w-none"
+                data-testid="selected-range"
+              >
                 {rangeLabel}
               </div>
               <Button variant="outline" size="icon" onClick={() => navigate(1)} data-testid="button-next-range">
@@ -448,7 +727,7 @@ export function AttendanceCalendar({ students, attendanceByDate, onAttendanceCha
               </Button>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {(mode === "weekly" || mode === "monthly") && (
                 <Button variant="default" size="sm" onClick={handleApplyChanges} data-testid="button-apply-changes">
                   حفظ التغييرات

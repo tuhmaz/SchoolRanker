@@ -163,7 +163,7 @@ export default function About() {
 
       <div className="text-center text-sm text-muted-foreground py-4">
         <p>© 2025 خدمتك لإدارة السجلات المدرسية. جميع الحقوق محفوظة.</p>
-        <p className="mt-1">الإصدار 2.0 الاحترافي</p>
+        <p className="mt-1">الإصدار 2.1 الاحترافي</p>
       </div>
     </div>
   );

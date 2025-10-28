@@ -10,6 +10,10 @@ import { nanoid } from "nanoid";
 import { generateMainGradebook, type MainGradebookPayload } from "./exportMainGradebook";
 import { generateAttendanceWorkbook, type AttendancePayload } from "./exportAttendance";
 import { generatePerformanceCover, type PerformanceCoverPayload } from "./exportPerformanceCover";
+import {
+  generateLessonAttendanceWorkbook,
+  type LessonAttendancePayload,
+} from "./exportLessonAttendance";
 import { generateScheduleWorkbook, type ScheduleExportPayload } from "./exportSchedule";
 
 // keep a map of generated files for download by id (memory-only)
@@ -82,6 +86,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.json({ ok: true, id: result.id, filename: result.filename });
     } catch (e: any) {
       return res.status(500).json({ message: e?.message || "failed to export main gradebook" });
+    }
+  });
+
+  app.post("/api/export/lesson-attendance", async (req, res) => {
+    try {
+      const payload = req.body as LessonAttendancePayload;
+      if (!payload) {
+        return res.status(400).json({ message: "invalid payload" });
+      }
+
+      const result = await generateLessonAttendanceWorkbook(payload);
+      exportFiles.set(result.id, result.exportPath);
+      return res.json({ ok: true, id: result.id, filename: result.filename });
+    } catch (e: any) {
+      console.error("[routes] Error exporting lesson attendance:", e);
+      return res
+        .status(500)
+        .json({ message: e?.message || "failed to export lesson attendance" });
     }
   });
 
@@ -549,6 +571,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       sendExportAndCleanup(res, id, exportPath);
+    } catch (e: any) {
+      res.status(500).json({ message: e?.message || "download failed" });
+    }
+  });
+
+  app.get("/api/export/lesson-attendance", async (req, res) => {
+    try {
+      const id = (req.query.id as string) || "";
+      const exportPath = exportFiles.get(id);
+      if (!exportPath || !fs.existsSync(exportPath)) {
+        return res.status(404).json({ message: "file not found" });
+      }
+      res.type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      sendExportAndCleanup(res, id, exportPath);
+      return;
     } catch (e: any) {
       res.status(500).json({ message: e?.message || "download failed" });
     }

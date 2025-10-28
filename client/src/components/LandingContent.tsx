@@ -2,6 +2,8 @@ import { Link } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/Logo";
+import { AdSlot } from "@/components/ads/AdSlot";
+import { AD_SLOTS } from "@/config/ads";
 import {
   FileSpreadsheet,
   BarChart3,
@@ -54,6 +56,12 @@ export function LandingContent() {
           </Button>
         </div>
       </section>
+
+      <AdSlot
+        slot={AD_SLOTS.homeHero}
+        className="mx-auto max-w-5xl"
+        skeleton
+      />
 
       {/* Features Section */}
       <section className="space-y-6">
@@ -195,141 +203,168 @@ export function LandingContent() {
         </div>
       </section>
 
-      {/* How It Works Section */}
-      <section className="space-y-6">
-        <h2 className="text-3xl font-bold text-center text-foreground">
-          كيف يعمل النظام؟
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div className="text-center space-y-3">
-            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
-              <Download className="h-8 w-8 text-primary" />
-            </div>
-            <h3 className="text-xl font-semibold">1. رفع ملف Excel</h3>
-            <p className="text-sm text-muted-foreground">
-              قم برفع كشف الطلبة من منصة أجيال بصيغة Excel
-            </p>
-          </div>
+      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="space-y-6">
+          {/* How It Works Section */}
+          <section className="space-y-6">
+            <h2 className="text-3xl font-bold text-center text-foreground">
+              كيف يعمل النظام؟
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="text-center space-y-3">
+                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
+                  <Download className="h-8 w-8 text-primary" />
+                </div>
+                <h3 className="text-xl font-semibold">1. رفع ملف Excel</h3>
+                <p className="text-sm text-muted-foreground">
+                  قم برفع كشف الطلبة من منصة أجيال بصيغة Excel
+                </p>
+              </div>
 
-          <div className="text-center space-y-3">
-            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
-              <Settings className="h-8 w-8 text-primary" />
-            </div>
-            <h3 className="text-xl font-semibold">2. إعداد البيانات</h3>
-            <p className="text-sm text-muted-foreground">
-              أدخل معلومات المعلم والمدرسة وحدد المواد الدراسية
-            </p>
-          </div>
+              <div className="text-center space-y-3">
+                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
+                  <Settings className="h-8 w-8 text-primary" />
+                </div>
+                <h3 className="text-xl font-semibold">2. إعداد البيانات</h3>
+                <p className="text-sm text-muted-foreground">
+                  أدخل معلومات المعلم والمدرسة وحدد المواد الدراسية
+                </p>
+              </div>
 
-          <div className="text-center space-y-3">
-            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
-              <Zap className="h-8 w-8 text-primary" />
-            </div>
-            <h3 className="text-xl font-semibold">3. إدخال البيانات</h3>
-            <p className="text-sm text-muted-foreground">
-              أدخل العلامات والحضور بطريقة سهلة ومنظمة
-            </p>
-          </div>
+              <div className="text-center space-y-3">
+                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
+                  <Zap className="h-8 w-8 text-primary" />
+                </div>
+                <h3 className="text-xl font-semibold">3. إدخال البيانات</h3>
+                <p className="text-sm text-muted-foreground">
+                  أدخل العلامات والحضور بطريقة سهلة ومنظمة
+                </p>
+              </div>
 
-          <div className="text-center space-y-3">
-            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
-              <FileCheck className="h-8 w-8 text-primary" />
+              <div className="text-center space-y-3">
+                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
+                  <FileCheck className="h-8 w-8 text-primary" />
+                </div>
+                <h3 className="text-xl font-semibold">4. طباعة التقارير</h3>
+                <p className="text-sm text-muted-foreground">
+                  احصل على تقارير احترافية جاهزة للطباعة والتسليم
+                </p>
+              </div>
             </div>
-            <h3 className="text-xl font-semibold">4. طباعة التقارير</h3>
-            <p className="text-sm text-muted-foreground">
-              احصل على تقارير احترافية جاهزة للطباعة والتسليم
-            </p>
-          </div>
+          </section>
+
+          {/* Main Features Section */}
+          <section className="space-y-6">
+            <h2 className="text-3xl font-bold text-center text-foreground">
+              الميزات الرئيسية لنظام خدمتك
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileSpreadsheet className="h-6 w-6 text-primary" />
+                    دفتر العلامات الفرعي
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-muted-foreground">
+                    نظام متكامل لرصد علامات الاختبارات الفرعية والواجبات اليومية.
+                    يتيح لك إدخال علامات متعددة لكل مادة مع حساب تلقائي للمجاميع والمعدلات.
+                  </p>
+                  <Button variant="outline" asChild className="w-full">
+                    <Link href="/side-gradebook">
+                      استكشف دفتر العلامات الفرعي
+                    </Link>
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BarChart3 className="h-6 w-6 text-primary" />
+                    تقارير الأداء الأكاديمي
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-muted-foreground">
+                    إنشاء تقارير شاملة لأداء الطلبة مع رسوم بيانية توضيحية ومعدلات تراكمية.
+                    يدعم النظام التقييم الشهري والفصلي والسنوي للطلبة.
+                  </p>
+                  <Button variant="outline" asChild className="w-full">
+                    <Link href="/performance">
+                      شاهد تقارير الأداء
+                    </Link>
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BookOpen className="h-6 w-6 text-primary" />
+                    دفتر العلامات الرئيسي
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-muted-foreground">
+                    السجل الرسمي لعلامات الطلبة النهائية. منظم بطريقة احترافية ومتوافق
+                    مع المعايير المعتمدة من وزارة التربية والتعليم.
+                  </p>
+                  <Button variant="outline" asChild className="w-full">
+                    <Link href="/main-gradebook">
+                      افتح دفتر العلامات الرئيسي
+                    </Link>
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Calendar className="h-6 w-6 text-primary" />
+                    سجل الحضور والغياب
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-muted-foreground">
+                    تتبع يومي لحضور وغياب الطلبة مع تقويم تفاعلي. يوفر إحصائيات
+                    دقيقة عن نسب الحضور والغياب لكل طالب.
+                  </p>
+                  <Button variant="outline" asChild className="w-full">
+                    <Link href="/attendance">
+                      إدارة الحضور والغياب
+                    </Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          </section>
         </div>
-      </section>
 
-      {/* Main Features Section */}
-      <section className="space-y-6">
-        <h2 className="text-3xl font-bold text-center text-foreground">
-          الميزات الرئيسية لنظام خدمتك
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileSpreadsheet className="h-6 w-6 text-primary" />
-                دفتر العلامات الفرعي
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-muted-foreground">
-                نظام متكامل لرصد علامات الاختبارات الفرعية والواجبات اليومية.
-                يتيح لك إدخال علامات متعددة لكل مادة مع حساب تلقائي للمجاميع والمعدلات.
-              </p>
-              <Button variant="outline" asChild className="w-full">
-                <Link href="/side-gradebook">
-                  استكشف دفتر العلامات الفرعي
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="h-6 w-6 text-primary" />
-                تقارير الأداء الأكاديمي
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-muted-foreground">
-                إنشاء تقارير شاملة لأداء الطلبة مع رسوم بيانية توضيحية ومعدلات تراكمية.
-                يدعم النظام التقييم الشهري والفصلي والسنوي للطلبة.
-              </p>
-              <Button variant="outline" asChild className="w-full">
-                <Link href="/performance">
-                  شاهد تقارير الأداء
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BookOpen className="h-6 w-6 text-primary" />
-                دفتر العلامات الرئيسي
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-muted-foreground">
-                السجل الرسمي لعلامات الطلبة النهائية. منظم بطريقة احترافية ومتوافق
-                مع المعايير المعتمدة من وزارة التربية والتعليم.
-              </p>
-              <Button variant="outline" asChild className="w-full">
-                <Link href="/main-gradebook">
-                  افتح دفتر العلامات الرئيسي
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="h-6 w-6 text-primary" />
-                سجل الحضور والغياب
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-muted-foreground">
-                تتبع يومي لحضور وغياب الطلبة مع تقويم تفاعلي. يوفر إحصائيات
-                دقيقة عن نسب الحضور والغياب لكل طالب.
-              </p>
-              <Button variant="outline" asChild className="w-full">
-                <Link href="/attendance">
-                  إدارة الحضور والغياب
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
+        <div className="space-y-4">
+          <AdSlot
+            slot={AD_SLOTS.homeInline}
+            className="sticky top-24"
+            fullWidthResponsive={false}
+            format="rectangle"
+            skeleton
+          />
+          <AdSlot
+            slot={AD_SLOTS.contentInline}
+            className="sticky top-[220px]"
+            fullWidthResponsive={false}
+            format="rectangle"
+            skeleton
+          />
         </div>
-      </section>
+      </div>
+      <AdSlot
+        slot={AD_SLOTS.footer}
+        className="mx-auto max-w-4xl"
+        format="horizontal"
+        skeleton
+      />
 
       {/* CTA Section */}
       <section className="bg-primary/5 rounded-lg p-8 text-center space-y-4">

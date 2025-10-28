@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 
 export function ThemeToggle() {
   const [theme, setTheme] = useState<"light" | "dark">(() => {
-    if (typeof window === "undefined") return "light";
+    if (typeof window === "undefined") return "dark";
     const savedTheme = localStorage.getItem("theme") as "light" | "dark" | null;
-    return savedTheme ?? "light";
+    return savedTheme ?? "dark";
   });
 
   useEffect(() => {

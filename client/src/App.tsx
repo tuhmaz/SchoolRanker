@@ -17,6 +17,7 @@ const SideGradebook = lazy(() => import("@/pages/SideGradebook"));
 const Performance = lazy(() => import("@/pages/Performance"));
 const MainGradebook = lazy(() => import("@/pages/MainGradebook"));
 const Attendance = lazy(() => import("@/pages/Attendance"));
+const LessonAttendance = lazy(() => import("@/pages/LessonAttendance"));
 const StudentSchedulePage = lazy(() => import("@/pages/StudentSchedule"));
 const Templates = lazy(() => import("@/pages/Templates"));
 const Instructions = lazy(() => import("@/pages/Instructions"));
@@ -36,6 +37,7 @@ function Router({ isNotFound }: { isNotFound: boolean }) {
       <Route path="/performance" component={Performance} />
       <Route path="/main-gradebook" component={MainGradebook} />
       <Route path="/attendance" component={Attendance} />
+      <Route path="/lesson-attendance" component={LessonAttendance} />
       <Route path="/schedule" component={StudentSchedulePage} />
       <Route path="/templates" component={Templates} />
       <Route path="/instructions" component={Instructions} />
@@ -61,6 +63,7 @@ function App() {
     "/performance",
     "/main-gradebook",
     "/attendance",
+    "/lesson-attendance",
     "/schedule",
     "/templates",
     "/instructions",

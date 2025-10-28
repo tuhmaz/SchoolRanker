@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileSpreadsheet, Download } from "lucide-react";
+import { FileSpreadsheet, Download, CalendarCheck, ClipboardList, Building2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface StoredSettings {
@@ -148,85 +148,166 @@ export default function MainGradebook() {
   };
 
   return (
-    <div className="space-y-6" dir="rtl">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">إنشاء دفتر علامات رئيسي</h1>
-        <p className="text-muted-foreground mt-2">
-          تأكد من أن جميع البيانات في صفحة "التجهيزات" صحيحة ومحفوظة قبل المتابعة. <span className="text-red-600 font-medium">تم تحديث القوالب لتصبح متوافقة مع الهوامش وجاهزة للطباعة المباشرة.</span>
-        </p>
-      </div>
-
-      <Card className="border-r-4 border-r-chart-3">
-        <CardHeader>
-          <CardTitle>مراجعة التجهيزات</CardTitle>
-          <CardDescription>يتم الاعتماد على المعلومات المحفوظة في صفحة التجهيزات.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm">
-          <div className="p-4 rounded-md border border-border/60 bg-muted/30">
-            <div className="text-muted-foreground">عدد الصفوف</div>
-            <div className="text-lg font-semibold">{totalClasses}</div>
-          </div>
-          <div className="p-4 rounded-md border border-border/60 bg-muted/30">
-            <div className="text-muted-foreground">عدد الطلبة</div>
-            <div className="text-lg font-semibold">{totalStudents}</div>
-          </div>
-          <div className="p-4 rounded-md border border-border/60 bg-muted/30">
-            <div className="text-muted-foreground">اسم المدرسة</div>
-            <div className="text-lg font-semibold">{settings?.school || "—"}</div>
-          </div>
-          <div className="p-4 rounded-md border border-border/60 bg-muted/30">
-            <div className="text-muted-foreground">اسم المعلم</div>
-            <div className="text-lg font-semibold">{settings?.teacherName || "—"}</div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>دفتر العلامات الرئيسي</CardTitle>
-          <CardDescription>يتم إنشاء الملف باستخدام القالب المناسب مع جميع المواد والشعب.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="bg-accent/50 rounded-lg p-6 text-center">
-            <FileSpreadsheet className="w-16 h-16 mx-auto text-primary mb-4" />
-            <p className="text-muted-foreground">دفتر كامل بجميع الطلبة والصفوف وفق التنسيق الأصلي.</p>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <Button
-              onClick={() => handleGenerate("lower")}
-              disabled={isGenerating || !hasPreparedData}
-              data-testid="button-generate-main-gradebook-lower"
-            >
-              <FileSpreadsheet className="w-4 h-4 ml-2" />
-              إنشاء الدفتر (روضة - رابع)
-            </Button>
-            <Button
-              onClick={() => handleGenerate("upper")}
-              disabled={isGenerating || !hasPreparedData}
-              data-testid="button-generate-main-gradebook-upper"
-            >
-              <FileSpreadsheet className="w-4 h-4 ml-2" />
-              إنشاء الدفتر (خامس - ثاني ثانوي)
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleDownloadExcel}
-              disabled={!downloadInfo || isDownloading}
-              data-testid="button-download-main-excel"
-            >
-              <Download className="w-4 h-4 ml-2" />
-              تحميل Excel
-            </Button>
-          </div>
-
-          {!hasPreparedData && (
-            <div className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
-              يرجى حفظ التجهيزات (الصفوف والطلبة) من صفحة "التجهيزات" قبل إنشاء دفتر العلامات الرئيسي.
+    <div className="mx-auto max-w-6xl space-y-8 px-4 pb-12 sm:px-6 lg:px-8" dir="rtl">
+      <section className="rounded-3xl border border-border/70 bg-muted/30 px-6 py-8 shadow-sm sm:px-8">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-medium text-primary">
+              <ClipboardList className="h-4 w-4" /> دفتر العلامات الرئيسي
             </div>
-          )}
-        </CardContent>
-      </Card>
+            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">إصدار دفتر العلامات الرئيسي</h1>
+            <p className="max-w-2xl text-sm text-muted-foreground sm:text-base">
+              تأكد من اعتماد البيانات في صفحة التجهيزات، ثم أنشئ ملف Excel متوافق مع القوالب الرسمية، جاهز للطباعة المباشرة مع هوامش محسوبة.
+            </p>
+          </div>
+          <div className="grid w-full gap-3 rounded-2xl border border-border/60 bg-background p-4 text-sm sm:grid-cols-2 lg:max-w-lg">
+            <div className="flex items-start gap-3">
+              <CalendarCheck className="mt-1 h-5 w-5 text-primary" />
+              <div>
+                <p className="font-semibold text-foreground">إعداد فصول السنة</p>
+                <p className="text-xs text-muted-foreground">اختر القالب المناسب وفق المرحلة الدراسية لتوزيع الصفوف تلقائيًا.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <Building2 className="mt-1 h-5 w-5 text-primary" />
+              <div>
+                <p className="font-semibold text-foreground">جاهزية رسمية</p>
+                <p className="text-xs text-muted-foreground">الملفات الناتجة متوافقة مع متطلبات الطباعة والتدقيق داخل المدرسة.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Card className="border border-border/70 bg-background/95">
+          <CardContent className="flex flex-col gap-1 px-4 py-5">
+            <span className="text-xs font-semibold text-muted-foreground">عدد الصفوف</span>
+            <span className="text-2xl font-bold text-foreground break-words">{totalClasses}</span>
+          </CardContent>
+        </Card>
+        <Card className="border border-border/70 bg-background/95">
+          <CardContent className="flex flex-col gap-1 px-4 py-5">
+            <span className="text-xs font-semibold text-muted-foreground">عدد الطلبة</span>
+            <span className="text-2xl font-bold text-foreground break-words">{totalStudents}</span>
+          </CardContent>
+        </Card>
+        <Card className="border border-border/70 bg-background/95">
+          <CardContent className="flex flex-col gap-1 px-4 py-5">
+            <span className="text-xs font-semibold text-muted-foreground">اسم المدرسة</span>
+            <span className="text-xl font-semibold text-foreground break-words leading-tight">{settings?.school || "—"}</span>
+          </CardContent>
+        </Card>
+        <Card className="border border-border/70 bg-background/95">
+          <CardContent className="flex flex-col gap-1 px-4 py-5">
+            <span className="text-xs font-semibold text-muted-foreground">اسم المعلم</span>
+            <span className="text-xl font-semibold text-foreground break-words leading-tight">{settings?.teacherName || "—"}</span>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <FileSpreadsheet className="h-5 w-5 text-primary" /> إنشاء الملف
+            </CardTitle>
+            <CardDescription>اختر القالب الملائم لكل مرحلة أو استخدم التوزيع التلقائي.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="rounded-2xl border border-border/60 bg-background px-4 py-4 text-sm text-muted-foreground">
+              عند اختيار أي قالب، يتم تجهيز ملف Excel يتضمن الصفوف، الشعب، والمواد المعتمدة، مع توزيع الطلاب آليًا حسب بياناتك.
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <Button
+                onClick={() => handleGenerate("lower")}
+                disabled={isGenerating || !hasPreparedData}
+                data-testid="button-generate-main-gradebook-lower"
+                className="h-12 w-full justify-center gap-2 whitespace-nowrap"
+              >
+                {isGenerating ? "جاري الإنشاء..." : "روضة - رابع"}
+              </Button>
+              <Button
+                onClick={() => handleGenerate("upper")}
+                disabled={isGenerating || !hasPreparedData}
+                data-testid="button-generate-main-gradebook-upper"
+                className="h-12 w-full justify-center gap-2 whitespace-nowrap"
+              >
+                {isGenerating ? "جاري الإنشاء..." : "خامس - ثاني ثانوي"}
+              </Button>
+              <Button
+                onClick={() => handleGenerate()}
+                disabled={isGenerating || !hasPreparedData}
+                variant="outline"
+                className="h-12 w-full justify-center gap-2 whitespace-nowrap"
+              >
+               توزيع تلقائي
+              </Button>
+            </div>
+
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100">
+              <span className="font-medium">تنبيه:</span> تأكد من أن كل صف مرتبط بشعبة واحدة على الأقل لضمان ظهور جميع الطلبة في الدفتر.
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Button
+                onClick={handleDownloadExcel}
+                disabled={!downloadInfo || isDownloading}
+                data-testid="button-download-main-gradebook"
+                className="h-12 gap-2"
+              >
+                {isDownloading ? "جاري التنزيل..." : (<><Download className="h-4 w-4" />تنزيل الملف النهائي</>)}
+              </Button>
+              <Button
+                onClick={() => window.open("/templates", "_blank")}
+                variant="secondary"
+                className="h-12 gap-2"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                الاطلاع على القوالب
+              </Button>
+            </div>
+
+            {!hasPreparedData && (
+              <p className="text-sm text-muted-foreground">
+                لم يتم العثور على بيانات الصفوف أو الطلبة. يرجى رفع ملف الطلبة من صفحة التجهيزات أولاً.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-xl">ملخص التجهيزات المحفوظة</CardTitle>
+            <CardDescription>عرض سريع للبيانات الأساسية قبل إنشاء الدفتر.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="min-w-0 rounded-xl border border-border/60 bg-background px-4 py-3">
+                <span className="text-xs text-muted-foreground">المديرية</span>
+                <p className="text-base font-semibold text-foreground break-words leading-tight">{settings?.directorate || "—"}</p>
+              </div>
+              <div className="min-w-0 rounded-xl border border-border/60 bg-background px-4 py-3">
+                <span className="text-xs text-muted-foreground">البرنامج</span>
+                <p className="text-base font-semibold text-foreground break-words leading-tight">{settings?.program || "—"}</p>
+              </div>
+              <div className="min-w-0 rounded-xl border border-border/60 bg-background px-4 py-3">
+                <span className="text-xs text-muted-foreground">العام الدراسي</span>
+                <p className="text-base font-semibold text-foreground break-words leading-tight">{settings?.year || "—"}</p>
+              </div>
+              <div className="min-w-0 rounded-xl border border-border/60 bg-background px-4 py-3">
+                <span className="text-xs text-muted-foreground">مربي الصف</span>
+                <p className="text-base font-semibold text-foreground break-words leading-tight">{settings?.isHomeroom ? settings.homeroomClass || "—" : "غير محدد"}</p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-4 text-xs text-primary">
+              <strong className="text-sm">ملاحظة:</strong> يمكنك إعادة إنشاء الملف في أي وقت بعد تحديث الطلبة أو المواد، وسيبقى آخر إصدار جاهزًا للتنزيل.
+            </div>
+          </CardContent>
+        </Card>
+      </section>
     </div>
   );
 }

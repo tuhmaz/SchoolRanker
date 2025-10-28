@@ -193,6 +193,8 @@ export async function parseMinistryFile(file: File): Promise<ParsedData> {
         const sheetResults: NonNullable<ParsedData["sheets"]> = [];
         const warnings: string[] = [];
         const classMap = new Map<string, Map<string, Set<string>>>();
+        const sheetsMissingClass = new Set<string>();
+        const sheetsMissingDivision = new Set<string>();
 
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
         const firstSheetData = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' }) as any[][];
@@ -223,7 +225,6 @@ export async function parseMinistryFile(file: File): Promise<ParsedData> {
           schoolInfo.program = program;
         }
 
-        let fallbackClassName = '';
         const sourceLabels: Record<ValueSource, string> = {
           direct: 'الخلايا الرئيسية في النموذج',
           'row-label': 'النص المجاور لعناوين الحقول',
@@ -281,7 +282,7 @@ export async function parseMinistryFile(file: File): Promise<ParsedData> {
         }
         if (!division) {
           const scanned = scanForLabelValue(rows, [/الشعبة/], {
-            maxRows: 25,
+            maxRows: 30,
             invalidValuePattern: /(اسم|رقم|تاريخ|حالة|عنوان|هاتف|الجنسية|مكان)/,
           });
           if (scanned) {
@@ -289,10 +290,24 @@ export async function parseMinistryFile(file: File): Promise<ParsedData> {
             divisionSource = 'row-label';
           }
         }
+        if (!division) {
+          const inlineDivision = rows
+            .filter((row) => row.some((cell: any) => typeof cell === 'string' && /الشعبة/.test(String(cell))))
+            .flatMap((row) =>
+              row
+                .map((cell: any) => (cell != null ? String(cell).trim() : ''))
+                .filter((value) => value && value !== ':' && !/الشعبة/.test(value)),
+            )
+            .find((value) => value.length <= 5);
+          if (inlineDivision) {
+            division = inlineDivision;
+            divisionSource = 'row-label';
+          }
+        }
         // محاولة قراءة الشعبة من الملف الرئيسي
         if (!division && firstSheetData) {
           const divisionFromMainFile = scanForLabelValue(firstSheetData, [/الشعبة/], {
-            maxRows: 25,
+            maxRows: 30,
             invalidValuePattern: /(اسم|رقم|تاريخ|حالة|عنوان|هاتف|الجنسية|مكان)/,
           });
           if (divisionFromMainFile) {
@@ -314,32 +329,31 @@ export async function parseMinistryFile(file: File): Promise<ParsedData> {
             const parts = sheetName.split(' - ');
             if (parts.length >= 2) {
               className = parts[0].trim();
-              division = parts[1].trim();
+              division = division || parts[1].trim();
               subject = subject || parts.slice(2).join(' - ').trim();
               classNameSource = 'sheet-name';
-              divisionSource = 'sheet-name';
+              if (!division) {
+                divisionSource = 'sheet-name';
+              }
             }
           }
 
-          if (!className && fallbackClassName) {
-            className = fallbackClassName;
-            classNameSource = 'previous';
-          }
-          if (className && !fallbackClassName) {
-            fallbackClassName = className;
-          }
+          const normalizedClass = className?.trim();
+          const normalizedDivision = division?.trim();
 
-          const hadClass = !!className && className.trim().length > 0;
-          const hadDivision = !!division && division.trim().length > 0;
+          const hadClass = !!normalizedClass;
+          const hadDivision = !!normalizedDivision;
 
-          className = className?.trim() || 'غير محدد';
-          division = division?.trim() || 'بدون شعبة';
+          className = hadClass ? normalizedClass! : `غير محدد (${sheetName})`;
+          division = hadDivision ? normalizedDivision! : `بدون شعبة (${sheetName})`;
           subject = subject?.trim() || '';
 
           if (!hadClass) {
+            sheetsMissingClass.add(sheetName);
             classNameSource = classNameSource || 'default';
           }
           if (!hadDivision) {
+            sheetsMissingDivision.add(sheetName);
             divisionSource = divisionSource || 'default';
           }
 
@@ -477,6 +491,18 @@ export async function parseMinistryFile(file: File): Promise<ParsedData> {
               students: sheetStudents,
             });
           }
+        }
+
+        if (sheetsMissingClass.size > 0) {
+          warnings.push(
+            `هناك ${sheetsMissingClass.size} ورقة لا تحتوي على خانة الصف بشكل صريح: ${Array.from(sheetsMissingClass).join(", ")}. تم استخدام القيمة الافتراضية "غير محدد".`,
+          );
+        }
+
+        if (sheetsMissingDivision.size > 0) {
+          warnings.push(
+            `هناك ${sheetsMissingDivision.size} ورقة لا تحتوي على خانة الشعبة بشكل صريح: ${Array.from(sheetsMissingDivision).join(", ")}. تم استخدام القيمة الافتراضية "بدون شعبة".`,
+          );
         }
 
         if (allStudents.length === 0) {

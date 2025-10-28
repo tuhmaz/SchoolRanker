@@ -35,7 +35,9 @@ export interface AttendancePayload {
   teacherName?: string;
   town?: string;
   year?: string; // e.g. "2025"
-  month: number; // 1..12
+  month: number; // fallback if months array not provided
+  months?: number[]; // optional multi-month export
+  termName?: string;
   classes: AttendanceClassInput[];
   students: AttendanceStudent[];
   attendance: AttendanceDayRecord[];
@@ -186,7 +188,7 @@ const collectDayColumns = (sheet: ExcelJS.Worksheet) => {
   return numericColumns;
 };
 
-const buildAttendanceMap = (records: AttendanceDayRecord[], month: number, year: number) => {
+const buildAttendanceMap = (records: AttendanceDayRecord[], month: number, allowedYears?: Set<number>) => {
   const map = new Map<string, Map<number, string>>();
   for (const record of records) {
     const date = new Date(record.date);
@@ -195,7 +197,8 @@ const buildAttendanceMap = (records: AttendanceDayRecord[], month: number, year:
     // نستخدم UTC لتجنّب انزياحات التوقيت
     const recYear = date.getUTCFullYear();
     const recMonth = date.getUTCMonth() + 1;
-    if (recYear !== year || recMonth !== month) continue;
+    if (recMonth !== month) continue;
+    if (allowedYears && !allowedYears.has(recYear)) continue;
     const day = date.getUTCDate();
 
     const mark =
@@ -271,8 +274,19 @@ export async function generateAttendanceWorkbook(
   if (!payload || !Array.isArray(payload.classes) || !Array.isArray(payload.students)) {
     throw new Error("invalid attendance payload");
   }
-  if (typeof payload.month !== "number" || payload.month < 1 || payload.month > 12) {
-    throw new Error("يجب تحديد شهر صحيح (1-12)");
+  const rawMonths = Array.isArray(payload.months) ? payload.months : [];
+  const monthCandidates = rawMonths.length > 0 ? rawMonths : [payload.month];
+
+  const uniqueMonths = Array.from(
+    new Set(
+      monthCandidates
+        .map((value) => Number.parseInt(String(value), 10))
+        .filter((value) => Number.isInteger(value) && value >= 1 && value <= 12),
+    ),
+  ).sort((a, b) => a - b);
+
+  if (uniqueMonths.length === 0) {
+    throw new Error("يجب تحديد شهر واحد على الأقل (1-12)");
   }
 
   // تحديد مسارات
@@ -284,26 +298,32 @@ export async function generateAttendanceWorkbook(
   const baseWb = new ExcelJS.Workbook();
   await baseWb.xlsx.readFile(templatePath);
 
-  const monthName = MONTH_NAME_MAP[payload.month];
-  if (!monthName) {
-    throw new Error(`الشهر ${payload.month} غير مدعوم في القالب الجديد`);
-  }
+  const extractYearNumber = (value?: string | null): number | null => {
+    if (!value) return null;
+    const match = String(value).match(/\d{4}/);
+    if (!match) return null;
+    return Number.parseInt(match[0], 10);
+  };
 
-  // البحث عن الورقة مع تجاهل المسافات الزائدة
-  const templateSheet = baseWb.worksheets.find((sheet) => {
-    const sheetName = sheet.name.trim();
-    return sheetName === monthName.trim() || sheetName === monthName;
+  const fallbackYear = extractYearNumber(payload.year) ?? new Date().getUTCFullYear();
+
+  const inferredYearByMonth = new Map<number, number>();
+  (payload.attendance ?? []).forEach((record) => {
+    const date = new Date(record.date);
+    if (Number.isNaN(date.getTime())) return;
+    const monthValue = date.getUTCMonth() + 1;
+    if (!uniqueMonths.includes(monthValue)) return;
+    if (!inferredYearByMonth.has(monthValue)) {
+      inferredYearByMonth.set(monthValue, date.getUTCFullYear());
+    }
   });
-  
-  if (!templateSheet) {
-    throw new Error(`تعذر العثور على ورقة للشهر '${monthName}' في القالب`);
-  }
 
-  const dayColumns = collectDayColumns(templateSheet);
-
-  const year = Number(payload.year ?? new Date().getUTCFullYear());
-  const days = daysInMonth(year, payload.month);
-  const attendanceMap = buildAttendanceMap(payload.attendance ?? [], payload.month, year);
+  const attendanceMaps = new Map<number, Map<string, Map<number, string>>>();
+  uniqueMonths.forEach((monthValue) => {
+    const inferredYear = inferredYearByMonth.get(monthValue);
+    const allowedYears = inferredYear ? new Set([inferredYear]) : undefined;
+    attendanceMaps.set(monthValue, buildAttendanceMap(payload.attendance ?? [], monthValue, allowedYears));
+  });
 
   // تجميع الطلاب حسب الصف
   const studentsByClass = new Map<string, AttendanceStudent[]>();
@@ -316,83 +336,134 @@ export async function generateAttendanceWorkbook(
   // نبدأ ملفًا جديدًا من القالب (لمنع تغيير القالب الأصلي في الذاكرة)
   const outWb = new ExcelJS.Workbook();
 
+  const sanitizeSheetName = (raw: string) => {
+    const trimmed = raw.trim().replace(/[\/:?*\[\]]/g, " ");
+    return trimmed.length <= 31 ? trimmed : `${trimmed.slice(0, 28)}...`;
+  };
+
+  const sheetNameCounts = new Map<string, number>();
+
   for (const cls of payload.classes) {
-    const sheetName = cls.sheetName || cls.name || "Class";
-    const clone = outWb.addWorksheet(sheetName, {
-      views: templateSheet.views,
-      pageSetup: templateSheet.pageSetup,
-      properties: templateSheet.properties,
-    });
-
-    templateSheet.eachRow({ includeEmpty: true }, (row) => {
-      const outRow = clone.getRow(row.number);
-      if (row.height) {
-        outRow.height = row.height;
-      }
-      row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-        const outCell = outRow.getCell(colNumber);
-        const value: any = cell.value;
-        if (value && typeof value === "object") {
-          if (value.richText) {
-            outCell.value = value.richText.map((p: any) => p?.text ?? "").join("");
-          } else if (value.formula) {
-            outCell.value = value.result ?? "";
-          } else if (value.text) {
-            outCell.value = value.text;
-          } else if (value.result !== undefined) {
-            outCell.value = value.result;
-          } else {
-            outCell.value = "";
-          }
-        } else {
-          outCell.value = value ?? "";
-        }
-        outCell.style = cell.style;
-      });
-      outRow.commit();
-    });
-
-    templateSheet.columns.forEach((templateColumn, idx) => {
-      const col = clone.getColumn(idx + 1);
-      if (templateColumn.width) {
-        col.width = templateColumn.width;
-      }
-      col.hidden = templateColumn.hidden ?? false;
-      if (templateColumn.style) {
-        col.style = templateColumn.style;
-      }
-    });
-
-    const merges = (templateSheet as any)?.model?.merges as string[] | undefined;
-    if (Array.isArray(merges)) {
-      merges.forEach((ref) => {
-        try {
-          clone.mergeCells(ref);
-        } catch {
-          /* تجاهل أخطاء الدمج */
-        }
-      });
-    }
-
+    const baseName = cls.sheetName || cls.name || "Class";
     const students = (studentsByClass.get(cls.id) ?? []).sort((a, b) => {
-      // فرز عربي (مع fallback)
       const nameA = (a.fullName ?? `${a.firstName ?? ""} ${a.fatherName ?? ""} ${a.grandName ?? ""} ${a.familyName ?? ""}`).trim();
       const nameB = (b.fullName ?? `${b.firstName ?? ""} ${b.fatherName ?? ""} ${b.grandName ?? ""} ${b.familyName ?? ""}`).trim();
       return nameA.localeCompare(nameB, "ar", { sensitivity: "base" });
     });
 
-    const attendanceStartRow = STUDENT_START_ROW;
+    uniqueMonths.forEach((monthValue) => {
+      const monthName = MONTH_NAME_MAP[monthValue];
+      if (!monthName) {
+        throw new Error(`الشهر ${monthValue} غير مدعوم في القالب الجديد`);
+      }
 
-    students.forEach((student, idx) => {
-      const attendanceRow = attendanceStartRow + idx;
-      const aMap = attendanceMap.get(student.id) ?? new Map<number, string>();
-      fillAttendanceRow(clone, attendanceRow, idx + 1, student, dayColumns, aMap, days);
+      const templateSheet = baseWb.worksheets.find((sheet) => {
+        const sheetName = sheet.name.trim();
+        return sheetName === monthName.trim() || sheetName === monthName;
+      });
+
+      if (!templateSheet) {
+        throw new Error(`تعذر العثور على ورقة للشهر '${monthName}' في القالب`);
+      }
+
+      const dayColumns = collectDayColumns(templateSheet);
+      const monthYear = inferredYearByMonth.get(monthValue) ?? fallbackYear;
+      const days = daysInMonth(monthYear, monthValue);
+      const attendanceMap = attendanceMaps.get(monthValue) ?? new Map<string, Map<number, string>>();
+
+      const rawSheetName = sanitizeSheetName(`${baseName} - ${monthName}`);
+      const count = sheetNameCounts.get(rawSheetName) ?? 0;
+      sheetNameCounts.set(rawSheetName, count + 1);
+      const finalSheetName = count === 0 ? rawSheetName : sanitizeSheetName(`${rawSheetName} (${count + 1})`);
+
+      const clone = outWb.addWorksheet(finalSheetName, {
+        views: templateSheet.views,
+        pageSetup: templateSheet.pageSetup,
+        properties: templateSheet.properties,
+      });
+
+      templateSheet.eachRow({ includeEmpty: true }, (row) => {
+        const outRow = clone.getRow(row.number);
+        if (row.height) {
+          outRow.height = row.height;
+        }
+        row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+          const outCell = outRow.getCell(colNumber);
+          const value: any = cell.value;
+          if (value && typeof value === "object") {
+            if (value.richText) {
+              outCell.value = value.richText.map((p: any) => p?.text ?? "").join("");
+            } else if (value.formula) {
+              outCell.value = value.result ?? "";
+            } else if (value.text) {
+              outCell.value = value.text;
+            } else if (value.result !== undefined) {
+              outCell.value = value.result;
+            } else {
+              outCell.value = "";
+            }
+          } else {
+            outCell.value = value ?? "";
+          }
+          outCell.style = cell.style;
+        });
+        outRow.commit();
+      });
+
+      templateSheet.columns.forEach((templateColumn, idx) => {
+        const col = clone.getColumn(idx + 1);
+        if (templateColumn.width) {
+          col.width = templateColumn.width;
+        }
+        col.hidden = templateColumn.hidden ?? false;
+        if (templateColumn.style) {
+          col.style = templateColumn.style;
+        }
+      });
+
+      const merges = (templateSheet as any)?.model?.merges as string[] | undefined;
+      if (Array.isArray(merges)) {
+        merges.forEach((ref) => {
+          try {
+            clone.mergeCells(ref);
+          } catch {
+            /* تجاهل أخطاء الدمج */
+          }
+        });
+      }
+
+      const classLabel = (cls.name ?? cls.sheetName ?? "").trim();
+      if (classLabel) {
+        const headerCell = clone.getCell("A1");
+        const currentValue = toText(headerCell.value);
+        if (currentValue.includes(":")) {
+          const [prefix] = currentValue.split(":");
+          headerCell.value = `${prefix.trim()}: ${classLabel}`;
+        } else if (currentValue.length > 0) {
+          headerCell.value = `${currentValue.trim()}: ${classLabel}`;
+        } else {
+          headerCell.value = classLabel;
+        }
+      }
+
+      const attendanceStartRow = STUDENT_START_ROW;
+
+      students.forEach((student, idx) => {
+        const attendanceRow = attendanceStartRow + idx;
+        const studentAttendance = attendanceMap.get(student.id) ?? new Map<number, string>();
+        fillAttendanceRow(clone, attendanceRow, idx + 1, student, dayColumns, studentAttendance, days);
+      });
     });
   }
 
   // حفظ الملف الناتج (لا حاجة لتنظيف - الأوراق تحتوي قيمًا فقط)
   const id = nanoid(10);
-  const filename = `دفتر_الحضور_${id}.xlsx`;
+  const descriptor = payload.termName
+    ? payload.termName.replace(/\s+/g, "_")
+    : uniqueMonths.length > 1
+    ? "مجمع"
+    : MONTH_NAME_MAP[uniqueMonths[0]] ?? "شهري";
+  const filename = `دفتر_الحضور_${descriptor}_${id}.xlsx`;
   const exportPath = path.resolve(exportsDir, filename);
   await outWb.xlsx.writeFile(exportPath);
 

@@ -1,8 +1,10 @@
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, X, Users } from "lucide-react";
+import { ChevronDown, Plus, X, Users } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface Subject {
   id: string;
@@ -28,6 +30,25 @@ interface ClassSubjectManagerProps {
 }
 
 export function ClassSubjectManager({ classes, onUpdate, students = [] }: ClassSubjectManagerProps) {
+  const [expandedClasses, setExpandedClasses] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    setExpandedClasses((previous) => {
+      const next: Record<string, boolean> = {};
+      classes.forEach((group, index) => {
+        next[group.className] = previous[group.className] ?? index === 0;
+      });
+      return next;
+    });
+  }, [classes]);
+
+  const toggleClassSection = (className: string) => {
+    setExpandedClasses((previous) => ({
+      ...previous,
+      [className]: !previous[className],
+    }));
+  };
+
   const handleAddSubject = (classIdx: number, divIdx: number) => {
     const newClasses = [...classes];
     newClasses[classIdx].divisions[divIdx].subjects.push({
@@ -66,75 +87,101 @@ export function ClassSubjectManager({ classes, onUpdate, students = [] }: ClassS
 
   return (
     <div className="space-y-4" data-testid="class-subject-manager">
-      {classes.map((classGroup, classIdx) => (
-        <Card key={classIdx}>
-          <CardHeader className="py-3 bg-accent/30">
-            <div className="flex items-center justify-between gap-2">
-              <CardTitle className="text-lg">الصف: {classGroup.className}</CardTitle>
-              <Badge variant="secondary" className="gap-1">
-                <Users className="w-3 h-3" />
-                {classGroup.divisions.reduce((sum, div) => 
-                  sum + getStudentCount(classGroup.className, div.division), 0
-                )} طالب/ة
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-4 space-y-4">
-            {classGroup.divisions.map((division, divIdx) => {
-              const studentCount = getStudentCount(classGroup.className, division.division);
-              return (
-                <div key={division.id} className="space-y-3 p-3 bg-card/50 border border-border/50 rounded-lg">
-                  <div className="flex items-center justify-between gap-2">
-                    <h6 className="font-semibold text-foreground">
-                      الشعبة: {division.division}
-                    </h6>
-                    <Badge variant="outline" className="gap-1">
-                      <Users className="w-3 h-3" />
-                      {studentCount} طالب/ة
-                    </Badge>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    {division.subjects.length === 0 ? (
-                      <div className="text-sm text-muted-foreground p-3 bg-muted/30 rounded-md">
-                        لا توجد مواد مضافة بعد. اضغط "إضافة مادة" لبدء الإضافة.
-                      </div>
-                    ) : (
-                      division.subjects.map((subject, subjectIdx) => (
-                        <div key={subject.id} className="flex gap-2">
-                          <Input
-                            value={subject.name}
-                            onChange={(e) => handleSubjectChange(classIdx, divIdx, subjectIdx, e.target.value)}
-                            placeholder="أدخل اسم المادة (مثال: اللغة العربية)"
-                            data-testid={`input-subject-${classIdx}-${divIdx}-${subjectIdx}`}
-                          />
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleRemoveSubject(classIdx, divIdx, subjectIdx)}
-                            data-testid={`button-remove-subject-${classIdx}-${divIdx}-${subjectIdx}`}
-                          >
-                            <X className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      ))
-                    )}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleAddSubject(classIdx, divIdx)}
-                      data-testid={`button-add-subject-${classIdx}-${divIdx}`}
-                    >
-                      <Plus className="w-4 h-4 ml-1" />
-                      إضافة مادة
-                    </Button>
-                  </div>
+      {classes.map((classGroup, classIdx) => {
+        const totalStudents = classGroup.divisions.reduce(
+          (sum, division) => sum + getStudentCount(classGroup.className, division.division),
+          0,
+        );
+        const isExpanded = expandedClasses[classGroup.className] ?? false;
+
+        return (
+          <Card key={classGroup.className} className="border-border/60 shadow-sm">
+            <CardHeader className="py-3">
+              <button
+                type="button"
+                onClick={() => toggleClassSection(classGroup.className)}
+                className="flex w-full items-center justify-between gap-3 text-right"
+              >
+                <div>
+                  <CardTitle className="text-lg">الصف: {classGroup.className}</CardTitle>
+                  <p className="mt-1 text-xs text-muted-foreground">{classGroup.divisions.length} شعبة · {totalStudents} طالب/ة</p>
                 </div>
-              );
-            })}
-          </CardContent>
-        </Card>
-      ))}
+                <ChevronDown
+                  className={cn(
+                    "h-4 w-4 transition-transform duration-200",
+                    isExpanded ? "-rotate-180" : "rotate-0",
+                  )}
+                />
+              </button>
+            </CardHeader>
+            {isExpanded ? (
+              <CardContent className="space-y-4">
+                <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-primary">
+                  أضف المواد بلغة واضحة ومطابقة لما يستخدم في الدفاتر الرسمية لضمان ظهورها بشكل صحيح في التقارير.
+                </div>
+                {classGroup.divisions.map((division, divIdx) => {
+                  const studentCount = getStudentCount(classGroup.className, division.division);
+                  return (
+                    <div
+                      key={division.id}
+                      className="space-y-3 rounded-xl border border-border/60 bg-muted/20 px-4 py-4"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="text-sm font-semibold text-foreground">الشعبة: {division.division}</div>
+                        <Badge variant="outline" className="gap-1">
+                          <Users className="h-3 w-3" />
+                          {studentCount} طالب/ة
+                        </Badge>
+                      </div>
+
+                      <div className="space-y-3">
+                        {division.subjects.length === 0 ? (
+                          <div className="rounded-lg border border-dashed border-border/60 bg-background px-4 py-3 text-sm text-muted-foreground">
+                            لا توجد مواد مضافة بعد. اضغط زر "إضافة مادة" للبدء.
+                          </div>
+                        ) : (
+                          division.subjects.map((subject, subjectIdx) => (
+                            <div
+                              key={subject.id}
+                              className="flex flex-col gap-2 rounded-lg border border-border/60 bg-background px-3 py-2 sm:flex-row sm:items-center"
+                            >
+                              <Input
+                                value={subject.name}
+                                onChange={(e) => handleSubjectChange(classIdx, divIdx, subjectIdx, e.target.value)}
+                                placeholder="أدخل اسم المادة (مثال: اللغة العربية)"
+                                data-testid={`input-subject-${classIdx}-${divIdx}-${subjectIdx}`}
+                                className="flex-1"
+                              />
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleRemoveSubject(classIdx, divIdx, subjectIdx)}
+                                data-testid={`button-remove-subject-${classIdx}-${divIdx}-${subjectIdx}`}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))
+                        )}
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleAddSubject(classIdx, divIdx)}
+                          data-testid={`button-add-subject-${classIdx}-${divIdx}`}
+                          className="gap-2"
+                        >
+                          <Plus className="h-4 w-4" />
+                          إضافة مادة
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            ) : null}
+          </Card>
+        );
+      })}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileSpreadsheet, Download, Printer } from "lucide-react";
+import { BadgeCheck, Download, FileSpreadsheet, Printer, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function SideGradebook() {
@@ -68,77 +68,175 @@ export default function SideGradebook() {
   }, [classes, students]);
 
   return (
-    <div className="space-y-6" dir="rtl">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">سجل العلامات الجانبي</h1>
-        <p className="text-muted-foreground mt-2">أنشئ واطبع سجلاً جانبياً منظماً لكل صف وشعبة.</p>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>تصدير وطباعة</CardTitle>
-          <CardDescription>يستخدم بيانات الإعدادات التي قمت بحفظها سابقاً.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="bg-accent/50 rounded-lg p-6 text-center">
-            <FileSpreadsheet className="w-16 h-16 mx-auto text-primary mb-4" />
-            <p className="text-muted-foreground">يولد ملف Excel في المسار المحلي ثم يمكنك تنزيله أو طباعته.</p>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <Button onClick={handleGenerate} disabled={loading || classes.length === 0} data-testid="button-generate-side-gradebook">
-              <FileSpreadsheet className="w-4 h-4 ml-2" />
-              إنشاء ملف السجل
-            </Button>
-            <Button variant="outline" onClick={handleDownload} disabled={loading || classes.length === 0} data-testid="button-download-excel">
-              <Download className="w-4 h-4 ml-2" />
-              تنزيل كملف Excel
-            </Button>
-            <Button variant="outline" onClick={() => window.print()} data-testid="button-print">
-              <Printer className="w-4 h-4 ml-2" />
-              طباعة
-            </Button>
-          </div>
-
-          {preview && (
-            <div className="mt-6 border rounded-md overflow-hidden bg-white text-black p-4 print:p-0">
-              <div className="flex items-center justify-between mb-3">
-                <div>الصف: {preview.className}</div>
-                <div>الشعبة: {preview.division}</div>
-                <div>سجل علامات جانبي</div>
-              </div>
-              <table className="w-full text-sm border-collapse" style={{ direction: "rtl" }}>
-                <thead>
-                  <tr>
-                    <th className="border px-2 py-1">م</th>
-                    <th className="border px-2 py-1 text-right">اسم الطالب</th>
-                    <th className="border px-2 py-1">التقويم الأول</th>
-                    <th className="border px-2 py-1">التقويم الثاني</th>
-                    <th className="border px-2 py-1">التقويم الثالث</th>
-                    <th className="border px-2 py-1">الاختبار النهائي</th>
-                    <th className="border px-2 py-1">المجموع</th>
-                    <th className="border px-2 py-1">المعدل</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {preview.list.map((s: any, i: number) => (
-                    <tr key={s.id || i}>
-                      <td className="border px-2 py-1 text-center">{i + 1}</td>
-                      <td className="border px-2 py-1">{s.name}</td>
-                      <td className="border px-2 py-1"></td>
-                      <td className="border px-2 py-1"></td>
-                      <td className="border px-2 py-1"></td>
-                      <td className="border px-2 py-1"></td>
-                      <td className="border px-2 py-1"></td>
-                      <td className="border px-2 py-1"></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+    <div className="mx-auto max-w-6xl space-y-8 px-4 sm:px-6" dir="rtl">
+      <section className="rounded-3xl border border-border/60 bg-gradient-to-b from-primary/10 via-background to-background px-5 py-7 shadow-sm sm:px-8 sm:py-8 dark:from-primary/20">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="max-w-2xl space-y-3">
+            <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+              <ShieldCheck className="h-4 w-4" /> جاهز للطباعة والتصدير
             </div>
-          )}
-        </CardContent>
-      </Card>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+              سجل العلامات الجانبي
+            </h1>
+            <p className="text-muted-foreground text-sm sm:text-base">
+              أنشئ نسخة احترافية قابلة للطباعة من سجل العلامات الجانبي لكل صف وشعبة بناءً على البيانات التي قمت
+              بإعدادها مسبقًا في النظام.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-border/60 bg-background/80 p-4 text-sm">
+            <div className="flex items-center gap-3">
+              <BadgeCheck className="h-5 w-5 text-primary" />
+              <span className="text-muted-foreground">يعتمد على بيانات الإعدادات الحالية</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <FileSpreadsheet className="h-5 w-5 text-primary" />
+              <span className="text-muted-foreground">تنسيق Excel متوافق مع متطلبات الوزارة</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)]">
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-xl">تصدير وطباعة</CardTitle>
+            <CardDescription className="leading-relaxed">
+              استخدم الأزرار التالية لإنشاء سجل جديد، تحميل ملف Excel، أو طباعة نسخة مباشرة. تأكد من تحديث بياناتك
+              قبل التصدير.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="rounded-2xl border border-dashed border-primary/40 bg-primary/5 p-6 text-center dark:bg-primary/15">
+              <FileSpreadsheet className="mx-auto mb-4 h-14 w-14 text-primary" />
+              <p className="text-sm text-muted-foreground">
+                يتم إنشاء الملف باستخدام معلومات المدرسة، الصفوف، والشعب المخزنة لدينا. يمكنك تعديل البيانات في صفحة
+                الإعدادات الأساسية قبل المتابعة.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+              <Button
+                onClick={handleGenerate}
+                disabled={loading || classes.length === 0}
+                data-testid="button-generate-side-gradebook"
+                className="flex-1 min-w-[200px]"
+              >
+                <FileSpreadsheet className="ml-2 h-4 w-4" /> إنشاء ملف السجل
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleDownload}
+                disabled={loading || classes.length === 0}
+                data-testid="button-download-excel"
+                className="flex-1 min-w-[200px]"
+              >
+                <Download className="ml-2 h-4 w-4" /> تنزيل كملف Excel
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => window.print()}
+                data-testid="button-print"
+                className="flex-1 min-w-[200px]"
+              >
+                <Printer className="ml-2 h-4 w-4" /> طباعة مباشرة
+              </Button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border/60 bg-muted/40 px-4 py-3 text-xs text-muted-foreground dark:bg-muted/20">
+              <span className="font-medium text-foreground">تلميح:</span>
+              <span>يمكنك تصدير أكثر من شعبة عبر الإعدادات ثم إعادة إنشاء السجل للحصول على ملفات متعددة.</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader className="flex flex-col gap-3 pb-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-1">
+              <CardTitle className="text-xl">معاينة سريعة</CardTitle>
+              <CardDescription>نموذج مبسّط لما سيتم تضمينه داخل ملف Excel الخاص بالسجل الجانبي.</CardDescription>
+            </div>
+            <div className="rounded-full bg-accent/60 px-3 py-1 text-xs font-medium text-accent-foreground">
+              {preview ? `${preview.className} - ${preview.division}` : "بانتظار اختيار البيانات"}
+            </div>
+          </CardHeader>
+          <CardContent>
+            {preview ? (
+              <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm dark:border-border">
+                <div className="flex flex-col gap-2 border-b border-border/70 bg-muted/40 px-4 py-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:text-sm dark:bg-muted/10">
+                  <span>الصف: <strong className="text-foreground">{preview.className}</strong></span>
+                  <span>الشعبة: <strong className="text-foreground">{preview.division}</strong></span>
+                  <span>سجل علامات جانبي</span>
+                </div>
+                <div className="space-y-3 px-4 py-4 sm:hidden">
+                  {preview.list.map((s: any, i: number) => (
+                    <div
+                      key={s.id || i}
+                      className="rounded-xl border border-border/60 bg-muted/20 px-4 py-3 text-xs shadow-sm dark:bg-muted/30"
+                    >
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-semibold text-foreground">{s.name}</span>
+                        <span className="text-muted-foreground">#{i + 1}</span>
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
+                        {[
+                          "التقويم الأول",
+                          "التقويم الثاني",
+                          "التقويم الثالث",
+                          "الاختبار النهائي",
+                          "المجموع",
+                          "المعدل",
+                        ].map((label) => (
+                          <div key={label} className="flex items-center justify-between gap-2 rounded-md bg-background px-2 py-1 dark:bg-muted/20">
+                            <span>{label}</span>
+                            <span className="font-medium text-foreground">—</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="hidden overflow-auto sm:block">
+                  <table className="w-full min-w-[720px] border-collapse text-sm" style={{ direction: "rtl" }}>
+                    <thead className="bg-muted/30 text-xs uppercase tracking-wide text-muted-foreground dark:bg-muted/20 dark:text-muted-foreground">
+                      <tr>
+                        <th className="border border-border/70 px-3 py-2">م</th>
+                        <th className="border border-border/70 px-3 py-2 text-right">اسم الطالب</th>
+                        <th className="border border-border/70 px-3 py-2">التقويم الأول</th>
+                        <th className="border border-border/70 px-3 py-2">التقويم الثاني</th>
+                        <th className="border border-border/70 px-3 py-2">التقويم الثالث</th>
+                        <th className="border border-border/70 px-3 py-2">الاختبار النهائي</th>
+                        <th className="border border-border/70 px-3 py-2">المجموع</th>
+                        <th className="border border-border/70 px-3 py-2">المعدل</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/60 dark:divide-border/40">
+                      {preview.list.map((s: any, i: number) => (
+                        <tr key={s.id || i} className="bg-white dark:bg-background">
+                          <td className="border border-border/60 px-3 py-2 text-center text-xs font-medium text-muted-foreground">
+                            {i + 1}
+                          </td>
+                          <td className="border border-border/60 px-3 py-2 text-sm font-medium text-foreground">{s.name}</td>
+                          <td className="border border-border/60 px-3 py-2 text-center text-xs text-muted-foreground">—</td>
+                          <td className="border border-border/60 px-3 py-2 text-center text-xs text-muted-foreground">—</td>
+                          <td className="border border-border/60 px-3 py-2 text-center text-xs text-muted-foreground">—</td>
+                          <td className="border border-border/60 px-3 py-2 text-center text-xs text-muted-foreground">—</td>
+                          <td className="border border-border/60 px-3 py-2 text-center text-xs text-muted-foreground">—</td>
+                          <td className="border border-border/60 px-3 py-2 text-center text-xs text-muted-foreground">—</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <div className="flex min-h-[220px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border/60 bg-muted/20 text-center text-sm text-muted-foreground">
+                <FileSpreadsheet className="h-8 w-8 text-muted-foreground" />
+                <p>لم يتم العثور على بيانات مناسبة للمعاينة. يرجى التأكد من رفع بيانات الصفوف والطلبة مسبقًا.</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </section>
     </div>
   );
 }
