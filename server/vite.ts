@@ -33,16 +33,19 @@ function injectCanonical(html: string, pathname: string) {
 
   let out = html;
 
+  // Update existing og:url
   out = out.replace(
     /(<meta[^>]*property=["']og:url["'][^>]*content=["'])([^"']+)(["'][^>]*>)/i,
     `$1${href}$3`
   );
 
+  // Update existing twitter:url
   out = out.replace(
     /(<meta[^>]*name=["']twitter:url["'][^>]*content=["'])([^"']+)(["'][^>]*>)/i,
     `$1${href}$3`
   );
 
+  // Ensure canonical link exists with correct href
   if (/rel=["']canonical["']/i.test(out)) {
     out = out.replace(
       /(<link[^>]*rel=["']canonical["'][^>]*href=["'])([^"']+)(["'][^>]*>)/i,
@@ -58,9 +61,6 @@ function injectCanonical(html: string, pathname: string) {
   return out;
 }
 
-// -----------------------------
-// 🧠 Development Mode (Vite Middleware)
-// -----------------------------
 export async function setupVite(app: Express, server: Server) {
   const serverOptions = {
     middlewareMode: true,
@@ -83,8 +83,6 @@ export async function setupVite(app: Express, server: Server) {
   });
 
   app.use(vite.middlewares);
-
-  // ✅ Serve React frontend in dev
   app.use("*", async (req, res, next) => {
     const url = req.originalUrl;
 
@@ -93,16 +91,17 @@ export async function setupVite(app: Express, server: Server) {
         getCurrentDir(),
         "..",
         "client",
-        "index.html"
+        "index.html",
       );
 
+      // always reload the index.html file from disk incase it changes
       let template = await fs.promises.readFile(clientTemplate, "utf-8");
       template = template.replace(
         `src="/src/main.tsx"`,
-        `src="/src/main.tsx?v=${nanoid()}"`
+        `src="/src/main.tsx?v=${nanoid()}"`,
       );
-
       let page = await vite.transformIndexHtml(url, template);
+      // Inject canonical/URL meta based on request path in dev too
       page = injectCanonical(page, req.path || "/");
       res.status(200).set({ "Content-Type": "text/html" }).end(page);
     } catch (e) {
@@ -112,53 +111,44 @@ export async function setupVite(app: Express, server: Server) {
   });
 }
 
-// -----------------------------
-// 🚀 Production Mode (Static Serve)
-// -----------------------------
 export function serveStatic(app: Express) {
-  // ✅ المسار الجديد للبناء النهائي
-  const distPath = path.resolve(getCurrentDir(), "../../dist/public");
+  const distPath = path.resolve(getCurrentDir(), "public");
 
   if (!fs.existsSync(distPath)) {
     throw new Error(
-      `❌ Could not find build directory: ${distPath}\n⚙️  Run "npm run build" first.`
+      `Could not find the build directory: ${distPath}, make sure to build the client first`,
     );
   }
 
-  app.use(
-    express.static(distPath, {
-      maxAge: "1y",
-      immutable: true,
-      setHeaders(res, filePath) {
-        if (filePath.endsWith(".html") || filePath.endsWith(".json")) {
-          res.setHeader(
-            "Cache-Control",
-            "public, max-age=300, must-revalidate"
-          );
-        }
-        // 🧩 إصلاح MIME-type
-        if (filePath.endsWith(".js")) {
-          res.type("application/javascript");
-        } else if (filePath.endsWith(".css")) {
-          res.type("text/css");
-        }
-      },
-    })
-  );
+  app.use(express.static(distPath, {
+    maxAge: "1y",
+    immutable: true,
+    setHeaders(res, filePath) {
+      if (filePath.endsWith(".html")) {
+        res.setHeader("Cache-Control", "public, max-age=300, must-revalidate");
+      } else if (filePath.endsWith(".json")) {
+        res.setHeader("Cache-Control", "public, max-age=300, must-revalidate");
+      }
+    },
+  }));
 
-  // 🧠 دعم React Router — أي مسار غير API يعيد index.html
+  // fall through to index.html if the file doesn't exist
   app.use("*", async (req, res, next) => {
-    if (req.method !== "GET" || req.path.startsWith("/api")) return next();
+    if (req.method !== "GET" || req.path.startsWith("/api")) {
+      return next();
+    }
 
     const indexPath = path.resolve(distPath, "index.html");
-    if (!fs.existsSync(indexPath)) return res.sendStatus(404);
+    if (!fs.existsSync(indexPath)) {
+      return res.sendStatus(404);
+    }
 
     try {
       const html = await fs.promises.readFile(indexPath, "utf-8");
       const page = injectCanonical(html, req.path || "/");
+      // Return 200 for SPA routes to allow proper indexing
       res.status(200).set({ "Content-Type": "text/html" }).send(page);
     } catch (e) {
-      console.error("Error serving index.html:", e);
       res.status(500).send("Internal Server Error");
     }
   });

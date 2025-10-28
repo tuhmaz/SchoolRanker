@@ -1,6 +1,6 @@
 import { Home, Settings, FileSpreadsheet, FileText, FileCheck, ClipboardList, Calendar, HelpCircle, Info, BookOpen, Users } from "lucide-react";
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Logo } from "@/components/Logo";
 import { AdSlot } from "@/components/ads/AdSlot";
 import { AD_SLOTS } from "@/config/ads";
@@ -34,10 +34,10 @@ export function AppSidebar() {
               {menuItems.map((item) => (
                 <SidebarMenuItem key={item.url}>
                   <SidebarMenuButton asChild isActive={location === item.url} data-testid={item.testId}>
-                    <a href={item.url}>
+                    <Link href={item.url}>
                       <item.icon className="w-5 h-5" />
                       <span>{item.title}</span>
-                    </a>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
