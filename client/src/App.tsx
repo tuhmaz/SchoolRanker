@@ -22,6 +22,7 @@ const StudentSchedulePage = lazy(() => import("@/pages/StudentSchedule"));
 const Templates = lazy(() => import("@/pages/Templates"));
 const Instructions = lazy(() => import("@/pages/Instructions"));
 const About = lazy(() => import("@/pages/About"));
+const Privacy = lazy(() => import("@/pages/Privacy"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
 function Router({ isNotFound }: { isNotFound: boolean }) {
@@ -42,6 +43,7 @@ function Router({ isNotFound }: { isNotFound: boolean }) {
       <Route path="/templates" component={Templates} />
       <Route path="/instructions" component={Instructions} />
       <Route path="/about" component={About} />
+      <Route path="/privacy" component={Privacy} />
       <Route component={() => null} />
     </Switch>
   );
@@ -68,6 +70,7 @@ function App() {
     "/templates",
     "/instructions",
     "/about",
+    "/privacy",
   ];
 
   // Check if current location is a valid route

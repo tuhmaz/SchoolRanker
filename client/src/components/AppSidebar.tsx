@@ -1,4 +1,4 @@
-import { Home, Settings, FileSpreadsheet, FileText, FileCheck, ClipboardList, Calendar, HelpCircle, Info, BookOpen, Users } from "lucide-react";
+import { Home, Settings, FileSpreadsheet, FileText, FileCheck, ClipboardList, Calendar, HelpCircle, Info, BookOpen, Users, Shield } from "lucide-react";
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { Link, useLocation } from "wouter";
 import { Logo } from "@/components/Logo";
@@ -17,6 +17,7 @@ const menuItems = [
   { title: "اختيار نماذج الكشوفات", url: "/templates", icon: Calendar, testId: "nav-templates" },
   { title: "التعليمات", url: "/instructions", icon: HelpCircle, testId: "nav-instructions" },
   { title: "عن النظام", url: "/about", icon: Info, testId: "nav-about" },
+  { title: "سياسة الخصوصية", url: "/privacy", icon: Shield, testId: "nav-privacy" },
 ];
 
 export function AppSidebar() {
