@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type CSSProperties } from "react";
 import { ADSENSE_CLIENT_ID } from "@/config/ads";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +10,7 @@ interface AdSlotProps {
   fullWidthResponsive?: boolean;
   showLabel?: boolean;
   skeleton?: boolean;
+  insStyle?: CSSProperties;
 }
 
 declare global {
@@ -28,6 +29,7 @@ export function AdSlot({
   fullWidthResponsive = true,
   showLabel = true,
   skeleton = false,
+  insStyle,
 }: AdSlotProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -76,7 +78,9 @@ export function AdSlot({
       });
   }, [slot]);
 
-  const shouldRenderPlaceholder = !ADSENSE_CLIENT_ID || !slot;
+  const slotConfigured = typeof slot === "string" && slot.trim().length > 0;
+  const shouldRenderPlaceholder = !ADSENSE_CLIENT_ID || !slotConfigured;
+  const isDev = import.meta.env.DEV;
 
   return (
     <div
@@ -94,18 +98,24 @@ export function AdSlot({
         </span>
       ) : null}
       {shouldRenderPlaceholder ? (
-        <div className="flex flex-col items-center gap-1 text-xs text-muted-foreground">
-          <span>مساحة إعلانية</span>
-          <span className="text-[10px] text-muted-foreground/70">(ستظهر هنا بعد ربط AdSense)</span>
-        </div>
+        isDev ? (
+          <div className="flex flex-col items-center gap-1 text-xs text-muted-foreground">
+            <span>مساحة إعلانية</span>
+            <span className="text-[10px] text-muted-foreground/70">(ستظهر هنا بعد ربط AdSense)</span>
+          </div>
+        ) : (
+          <div className="inline-flex items-center rounded-md bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
+            جار تحميل الإعلان…
+          </div>
+        )
       ) : (
         <>
           {skeleton ? (
-            <div className="h-28 animate-pulse rounded-md bg-muted" />
+            <div className="h-5 animate-pulse rounded-md bg-muted" />
           ) : null}
           <ins
-            className="adsbygoogle block"
-            style={{ display: "block", minHeight: "120px" }}
+            className="adsbygoogle"
+            style={{ display: "block", minHeight: "120px", ...insStyle }}
             data-ad-client={ADSENSE_CLIENT_ID}
             data-ad-slot={slot}
             data-ad-format={format}
