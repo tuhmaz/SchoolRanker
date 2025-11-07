@@ -16,7 +16,8 @@ import {
   Download,
   Settings,
   Zap,
-  FileCheck
+  FileCheck,
+  PlayCircle,
 } from "lucide-react";
 
 export function LandingContent() {
@@ -54,6 +55,63 @@ export function LandingContent() {
               دليل الاستخدام
             </Link>
           </Button>
+        </div>
+      </section>
+
+      {/* New Features Spotlight */}
+      <section className="rounded-3xl border border-primary/20 bg-primary/5 p-6 sm:p-8 space-y-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-2xl font-bold text-foreground">الجديد في خدمتك</h2>
+          <span className="text-sm text-primary font-semibold">تحديثات نوفمبر 2025</span>
+        </div>
+        <p className="text-muted-foreground text-base">
+          نحافظ على جميع المزايا الأساسية كما هي، مع إضافة تحسينات جديدة تساعدك على إنجاز أعمالك بشكل أسرع وأكثر دقة.
+        </p>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card className="border-primary/30 bg-background/70">
+            <CardHeader className="space-y-1">
+              <div className="flex items-center gap-2 text-primary">
+                <Zap className="h-5 w-5" />
+                <CardTitle className="text-lg">تحسين محلل جدول العلامات</CardTitle>
+              </div>
+              <CardDescription>
+                اكتشاف تلقائي للفصول المتاحة، تعطيل الشهادة النهائية عند غياب بيانات الفصل الثاني، واحتساب النسب لأقرب عُشر.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+          <Card className="border-primary/30 bg-background/70">
+            <CardHeader className="space-y-1">
+              <div className="flex items-center gap-2 text-primary">
+                <FileCheck className="h-5 w-5" />
+                <CardTitle className="text-lg">شهادات الفصل الأول المحسّنة</CardTitle>
+              </div>
+              <CardDescription>
+                توليد شهادات دقيقة للفصل الأول مع استبعاد المواد غير المدروسة وتنسيق تلقائي للمعدلات.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+          <Card className="border-primary/30 bg-background/70">
+            <CardHeader className="space-y-1">
+              <div className="flex items-center gap-2 text-primary">
+                <PlayCircle className="h-5 w-5" />
+                <CardTitle className="text-lg">دروس فيديو جديدة</CardTitle>
+              </div>
+              <CardDescription>
+                فيديوهات لإعداد شهادات الفصل الأول والشهادات النهائية متاحة الآن في صفحة الفيديوهات التعليمية.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+          <Card className="border-primary/30 bg-background/70">
+            <CardHeader className="space-y-1">
+              <div className="flex items-center gap-2 text-primary">
+                <Shield className="h-5 w-5" />
+                <CardTitle className="text-lg">تحسينات الواجهة الفاتحة</CardTitle>
+              </div>
+              <CardDescription>
+                تباين أوضح في صفحة محلل جدول العلامات لتمييز البطاقات والجداول دون التأثير على التصميم الأصلي.
+              </CardDescription>
+            </CardHeader>
+          </Card>
         </div>
       </section>
 

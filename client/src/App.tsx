@@ -23,6 +23,8 @@ const Templates = lazy(() => import("@/pages/Templates"));
 const Instructions = lazy(() => import("@/pages/Instructions"));
 const About = lazy(() => import("@/pages/About"));
 const Privacy = lazy(() => import("@/pages/Privacy"));
+const GradebookAnalyzer = lazy(() => import("@/pages/GradebookAnalyzer"));
+const Tutorials = lazy(() => import("@/pages/Tutorials"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
 function Router({ isNotFound }: { isNotFound: boolean }) {
@@ -40,8 +42,10 @@ function Router({ isNotFound }: { isNotFound: boolean }) {
       <Route path="/attendance" component={Attendance} />
       <Route path="/lesson-attendance" component={LessonAttendance} />
       <Route path="/schedule" component={StudentSchedulePage} />
+      <Route path="/gradebook-analyzer" component={GradebookAnalyzer} />
       <Route path="/templates" component={Templates} />
       <Route path="/instructions" component={Instructions} />
+      <Route path="/tutorials" component={Tutorials} />
       <Route path="/about" component={About} />
       <Route path="/privacy" component={Privacy} />
       <Route component={() => null} />
@@ -67,8 +71,10 @@ function App() {
     "/attendance",
     "/lesson-attendance",
     "/schedule",
+    "/gradebook-analyzer",
     "/templates",
     "/instructions",
+    "/tutorials",
     "/about",
     "/privacy",
   ];

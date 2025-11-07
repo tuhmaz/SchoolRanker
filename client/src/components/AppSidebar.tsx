@@ -1,5 +1,5 @@
-import { Home, Settings, FileSpreadsheet, FileText, FileCheck, ClipboardList, Calendar, HelpCircle, Info, BookOpen, Users, Shield } from "lucide-react";
-import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
+import { Home, Settings, FileSpreadsheet, FileText, FileCheck, ClipboardList, Calendar, HelpCircle, Info, BookOpen, Users, Shield, Table, Video } from "lucide-react";
+import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar";
 import { Link, useLocation } from "wouter";
 import { Logo } from "@/components/Logo";
 import { AdSlot } from "@/components/ads/AdSlot";
@@ -14,6 +14,8 @@ const menuItems = [
   { title: "دفتر حضور وغياب", url: "/attendance", icon: ClipboardList, testId: "nav-attendance" },
   { title: "سجل الحصة الصفية", url: "/lesson-attendance", icon: Users, testId: "nav-lesson-attendance" },
   { title: "جدول الطلبة و مجموع الغياب", url: "/schedule", icon: BookOpen, testId: "nav-schedule" },
+  { title: "إنشاء الشهادات", url: "/gradebook-analyzer", icon: Table, testId: "nav-gradebook-analyzer" },
+  { title: "الفيديوهات التعليمية", url: "/tutorials", icon: Video, testId: "nav-tutorials" },
   { title: "اختيار نماذج الكشوفات", url: "/templates", icon: Calendar, testId: "nav-templates" },
   { title: "التعليمات", url: "/instructions", icon: HelpCircle, testId: "nav-instructions" },
   { title: "عن النظام", url: "/about", icon: Info, testId: "nav-about" },
@@ -22,6 +24,14 @@ const menuItems = [
 
 export function AppSidebar() {
   const [location] = useLocation();
+  const { isMobile, setOpenMobile } = useSidebar();
+
+  const handleNavigate = () => {
+    if (isMobile) {
+      // Delay closing slightly to allow navigation to trigger without interfering with routing
+      window.setTimeout(() => setOpenMobile(false), 50);
+    }
+  };
 
   return (
     <Sidebar side="right">
@@ -34,8 +44,8 @@ export function AppSidebar() {
             <SidebarMenu>
               {menuItems.map((item) => (
                 <SidebarMenuItem key={item.url}>
-                  <SidebarMenuButton asChild isActive={location === item.url} data-testid={item.testId}>
-                    <Link href={item.url}>
+                  <SidebarMenuButton asChild isActive={location === item.url} data-testid={item.testId} onClick={handleNavigate}>
+                    <Link href={item.url} onClick={handleNavigate}>
                       <item.icon className="w-5 h-5" />
                       <span>{item.title}</span>
                     </Link>

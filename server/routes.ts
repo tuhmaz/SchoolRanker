@@ -1,4 +1,4 @@
-import type { Express, Response } from "express";
+import express, { type Express, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import path from "path";
@@ -8,6 +8,10 @@ import fs from "fs";
 import ExcelJS from "exceljs";
 import { nanoid } from "nanoid";
 import { generateMainGradebook, type MainGradebookPayload } from "./exportMainGradebook";
+import {
+  generateCertificateWorkbook,
+  type CertificateExportPayload,
+} from "./exportCertificate";
 import { generateAttendanceWorkbook, type AttendancePayload } from "./exportAttendance";
 import { generatePerformanceCover, type PerformanceCoverPayload } from "./exportPerformanceCover";
 import {
@@ -78,6 +82,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // use storage to perform CRUD operations on the storage interface
   // e.g. storage.insertUser(user) or storage.getUserByUsername(username)
 
+  const projectRoot = path.resolve(getCurrentDir(), "..");
+  const tutorialsDir = path.resolve(projectRoot, "templates", "vedio");
+  if (fs.existsSync(tutorialsDir)) {
+    app.use(
+      "/tutorials/videos",
+      express.static(tutorialsDir, {
+        setHeaders(res, filePath) {
+          if (filePath.endsWith(".mp4")) {
+            res.setHeader("Content-Type", "video/mp4");
+            res.setHeader("Cache-Control", "public, max-age=86400");
+          }
+        },
+      }),
+    );
+  }
+
   app.post("/api/export/main-gradebook", async (req, res) => {
     try {
       const payload = req.body as MainGradebookPayload;
@@ -86,6 +106,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.json({ ok: true, id: result.id, filename: result.filename });
     } catch (e: any) {
       return res.status(500).json({ message: e?.message || "failed to export main gradebook" });
+    }
+  });
+
+  app.post("/api/export/certificate", async (req, res) => {
+    try {
+      const payload = req.body as CertificateExportPayload;
+      if (!payload || !Array.isArray(payload.students) || payload.students.length === 0) {
+        return res.status(400).json({ message: "invalid payload" });
+      }
+
+      const result = await generateCertificateWorkbook(payload);
+      exportFiles.set(result.id, result.exportPath);
+      return res.json({ ok: true, id: result.id, filename: result.filename, count: result.studentCount });
+    } catch (e: any) {
+      console.error("[routes] Error exporting certificates:", e);
+      return res.status(500).json({ message: e?.message || "failed to export certificates" });
     }
   });
 
@@ -563,6 +599,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Download last generated main gradebook
   app.get("/api/export/main-gradebook", async (req, res) => {
+    try {
+      const id = (req.query.id as string) || "";
+      const exportPath = exportFiles.get(id);
+      if (!exportPath || !fs.existsSync(exportPath)) {
+        return res.status(404).json({ message: "file not found" });
+      }
+      res.type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      sendExportAndCleanup(res, id, exportPath);
+    } catch (e: any) {
+      res.status(500).json({ message: e?.message || "download failed" });
+    }
+  });
+
+  app.get("/api/export/certificate", async (req, res) => {
     try {
       const id = (req.query.id as string) || "";
       const exportPath = exportFiles.get(id);

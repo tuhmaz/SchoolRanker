@@ -192,6 +192,7 @@ export async function parseMinistryFile(file: File): Promise<ParsedData> {
         const allStudents: Student[] = [];
         const sheetResults: NonNullable<ParsedData["sheets"]> = [];
         const warnings: string[] = [];
+        let hasNationalIdColumn = false;
         const classMap = new Map<string, Map<string, Set<string>>>();
         const sheetsMissingClass = new Set<string>();
         const sheetsMissingDivision = new Set<string>();
@@ -407,6 +408,9 @@ export async function parseMinistryFile(file: File): Promise<ParsedData> {
               nationalIdColumnIndex = row.findIndex((cell: any) => cell && /(رقم\s*(الإثبات|الهوية))/.test(String(cell)));
               birthDateColumnIndex = row.findIndex((cell: any) => cell && /تاريخ\s*الميلاد/.test(String(cell)));
               statusColumnIndex = row.findIndex((cell: any) => cell && /حالة\s*القيد/.test(String(cell)));
+              if (nationalIdColumnIndex !== -1) {
+                hasNationalIdColumn = true;
+              }
               break;
             }
           }
@@ -503,6 +507,11 @@ export async function parseMinistryFile(file: File): Promise<ParsedData> {
           warnings.push(
             `هناك ${sheetsMissingDivision.size} ورقة لا تحتوي على خانة الشعبة بشكل صريح: ${Array.from(sheetsMissingDivision).join(", ")}. تم استخدام القيمة الافتراضية "بدون شعبة".`,
           );
+        }
+
+        if (!hasNationalIdColumn) {
+          reject(new Error("ارجى رفع كشف الطلبة من منصة أجيال بالصيغـة المعتمدة."));
+          return;
         }
 
         if (allStudents.length === 0) {
