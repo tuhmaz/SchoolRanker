@@ -2,6 +2,7 @@ User-agent: *
 Allow: /
 Disallow: /admin
 Disallow: /api
+Disallow: /tutorials/videos/
 Disallow: /*.json$
 Disallow: /*?*sort=
 Disallow: /*?*filter=

@@ -3,12 +3,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { BadgeCheck, Download, FileSpreadsheet, Printer, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { LoadingOverlay } from "@/components/LoadingOverlay";
+import { AdSlot } from "@/components/ads/AdSlot";
+import { AD_SLOTS } from "@/config/ads";
 
 export default function SideGradebook() {
   const { toast } = useToast();
   const [classes, setClasses] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [showGenerateOverlay, setShowGenerateOverlay] = useState(false);
+  const [generateCountdown, setGenerateCountdown] = useState(0);
 
   useEffect(() => {
     try {
@@ -24,22 +29,84 @@ export default function SideGradebook() {
 
   const [lastId, setLastId] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!showGenerateOverlay) return;
+    const interval = window.setInterval(() => {
+      setGenerateCountdown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [showGenerateOverlay]);
+
+  const buildRequestBody = () => {
+    let settings: any = {};
+    try {
+      settings = JSON.parse(localStorage.getItem("appSettings") ?? "{}");
+    } catch (_) {
+      // ignore
+    }
+
+    return JSON.stringify({
+      classes,
+      students,
+      teacherName: settings?.teacherName ?? "",
+      school: settings?.school ?? "",
+      directorate: settings?.directorate ?? "",
+      town: settings?.town ?? "",
+      program: settings?.program ?? settings?.schoolInfo?.program ?? "",
+      year: settings?.year ?? "",
+      isHomeroom: Boolean(settings?.isHomeroom),
+      homeroomClass: settings?.homeroomClass ?? "",
+    });
+  };
+
   const handleGenerate = async () => {
+    if (loading) return;
+
+    const WAIT_SECONDS = 10;
+
     try {
       setLoading(true);
-      const res = await fetch("/api/export/side-gradebook", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: (()=>{ let s: any = {}; try{s=JSON.parse(localStorage.getItem("appSettings")||"{}");}catch{} return JSON.stringify({ classes, students, teacherName:s?.teacherName||"", school:s?.school||"", directorate:s?.directorate||"", town:s?.town||"", program:s?.program||s?.schoolInfo?.program||"", year:s?.year||"", isHomeroom: !!s?.isHomeroom, homeroomClass: s?.homeroomClass||"" }); })(),
+      setGenerateCountdown(WAIT_SECONDS);
+      setShowGenerateOverlay(true);
+
+      let exportError: Error | null = null;
+
+      const minDelay = new Promise((resolve) => {
+        window.setTimeout(resolve, WAIT_SECONDS * 1000);
       });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
-      setLastId(data.id || null);
-      toast({ title: "تم إنشاء السجل", description: `تم تجهيز الملف: ${data.filename}` });
+
+      const exportTask = (async () => {
+        try {
+          const res = await fetch("/api/export/side-gradebook", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: buildRequestBody(),
+          });
+
+          if (!res.ok) {
+            const message = await res.text();
+            throw new Error(message || "تعذر إنشاء ملف Excel");
+          }
+
+          const data = await res.json();
+          setLastId(data.id || null);
+          toast({ title: "تم إنشاء السجل", description: `تم تجهيز الملف: ${data.filename}` });
+        } catch (error: any) {
+          exportError = error instanceof Error ? error : new Error("تعذر إنشاء ملف Excel");
+        }
+      })();
+
+      await Promise.all([exportTask, minDelay]);
+
+      if (exportError) {
+        throw exportError;
+      }
     } catch (e: any) {
       toast({ title: "فشل إنشاء الملف", description: e?.message || "تعذر إنشاء ملف Excel", variant: "destructive" });
     } finally {
       setLoading(false);
+      setShowGenerateOverlay(false);
+      setGenerateCountdown(0);
     }
   };
 
@@ -48,7 +115,7 @@ export default function SideGradebook() {
       const res = await fetch("/api/export/side-gradebook", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: (()=>{ let s: any = {}; try{s=JSON.parse(localStorage.getItem("appSettings")||"{}");}catch{} return JSON.stringify({ classes, students, teacherName:s?.teacherName||"", school:s?.school||"", directorate:s?.directorate||"", town:s?.town||"", program:s?.program||s?.schoolInfo?.program||"", year:s?.year||"", isHomeroom: !!s?.isHomeroom, homeroomClass: s?.homeroomClass||"" }); })(),
+        body: buildRequestBody(),
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
@@ -69,6 +136,22 @@ export default function SideGradebook() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 px-4 sm:px-6" dir="rtl">
+      {showGenerateOverlay && (
+        <LoadingOverlay
+          message={`جارٍ إنشاء ملف السجل... يرجى الانتظار ${generateCountdown > 0 ? `${generateCountdown} ثانية` : "قليلًا"}`}
+        >
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">بدعم من شركائنا الإعلانيين</p>
+            <AdSlot
+              slot={AD_SLOTS.contentInline}
+              className="border-none bg-transparent p-0"
+              showLabel={false}
+              insStyle={{ display: "block", minHeight: "120px" }}
+            />
+          </div>
+        </LoadingOverlay>
+      )}
+
       <section className="rounded-3xl border border-border/60 bg-gradient-to-b from-primary/10 via-background to-background px-5 py-7 shadow-sm sm:px-8 sm:py-8 dark:from-primary/20">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-2xl space-y-3">
