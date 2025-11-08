@@ -1,7 +1,17 @@
-import { PlayCircle, Download } from "lucide-react";
+import { useCallback, useMemo } from "react";
+import { PlayCircle, Download, Share2, Copy, Facebook, Twitter, MessageCircle, Send } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { useToast } from "@/hooks/use-toast";
 
 const videos = [
   {
@@ -71,6 +81,81 @@ const groupVideos = <T,>(items: readonly T[], size: number): T[][] => {
 };
 
 export default function TutorialsPage() {
+  const { toast } = useToast();
+
+  const shareBaseUrl = useMemo(() => {
+    if (typeof window !== "undefined") {
+      return `${window.location.origin}/tutorials`;
+    }
+    return "https://khadmatak.com/tutorials";
+  }, []);
+
+  const getShareUrl = useCallback(
+    (index: number) => `${shareBaseUrl}#video-${index + 1}`,
+    [shareBaseUrl],
+  );
+
+  const buildShareMessage = useCallback((videoTitle: string, index: number) => {
+    return `شاهد فيديو "${videoTitle}" (الفيديو #${index + 1}) من دليل نظام خدمتك التعليمي.`;
+  }, []);
+
+  const openShareWindow = useCallback((url: string) => {
+    if (typeof window === "undefined") return;
+    window.open(url, "_blank", "noopener,noreferrer");
+  }, []);
+
+  const handleCopyLink = useCallback(
+    async (index: number) => {
+      const shareUrl = getShareUrl(index);
+
+      try {
+        if (typeof navigator !== "undefined" && navigator.clipboard) {
+          await navigator.clipboard.writeText(shareUrl);
+        } else if (typeof document !== "undefined") {
+          const tempInput = document.createElement("textarea");
+          tempInput.value = shareUrl;
+          document.body.appendChild(tempInput);
+          tempInput.select();
+          document.execCommand("copy");
+          document.body.removeChild(tempInput);
+        }
+
+        toast({ description: "تم نسخ رابط الفيديو بنجاح." });
+      } catch (error) {
+        console.error("Copy link error", error);
+        toast({ variant: "destructive", description: "تعذر نسخ الرابط، يرجى المحاولة لاحقًا." });
+      }
+    },
+    [getShareUrl, toast],
+  );
+
+  const handleNativeShare = useCallback(
+    async (videoTitle: string, index: number) => {
+      if (typeof navigator === "undefined" || typeof navigator.share !== "function") {
+        toast({ description: "المشاركة الأصلية غير مدعومة على هذا الجهاز." });
+        return;
+      }
+
+      const shareUrl = getShareUrl(index);
+      const text = buildShareMessage(videoTitle, index);
+
+      try {
+        await navigator.share({ title: videoTitle, text, url: shareUrl });
+      } catch (error) {
+        if ((error as DOMException)?.name !== "AbortError") {
+          console.warn("Native share error", error);
+          toast({ variant: "destructive", description: "تعذر مشاركة الفيديو، يرجى المحاولة لاحقًا." });
+        }
+      }
+    },
+    [buildShareMessage, getShareUrl, toast],
+  );
+
+  const isNativeShareSupported = useMemo(
+    () => typeof navigator !== "undefined" && typeof navigator.share === "function",
+    [],
+  );
+
   return (
     <div className="space-y-8">
       <header className="space-y-3 text-center sm:text-start">
@@ -93,6 +178,7 @@ export default function TutorialsPage() {
               return (
                 <Card
                   key={video.filename}
+                  id={`video-${absoluteIndex + 1}`}
                   className="flex h-full flex-col border-border/70 bg-background/80 shadow-sm backdrop-blur-sm"
                 >
                   <CardHeader className="space-y-1">
@@ -121,12 +207,103 @@ export default function TutorialsPage() {
                           مدة الفيديو: {video.duration}
                         </span>
                       </div>
-                      <Button variant="outline" size="sm" asChild>
-                        <a href={buildVideoUrl(video.filename)} download>
-                          <Download className="mr-2 h-4 w-4" />
-                          تنزيل الفيديو
-                        </a>
-                      </Button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm" className="gap-2">
+                              <Share2 className="h-4 w-4" />
+                              مشاركة
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-60">
+                            <DropdownMenuLabel>مشاركة هذا الفيديو</DropdownMenuLabel>
+                            {isNativeShareSupported && (
+                              <DropdownMenuItem
+                                onSelect={(event) => {
+                                  event.preventDefault();
+                                  void handleNativeShare(video.title, absoluteIndex);
+                                }}
+                                className="gap-2"
+                              >
+                                <Share2 className="h-4 w-4" />
+                                مشاركة عبر الجهاز
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem
+                              onSelect={(event) => {
+                                event.preventDefault();
+                                void handleCopyLink(absoluteIndex);
+                              }}
+                              className="gap-2"
+                            >
+                              <Copy className="h-4 w-4" />
+                              نسخ الرابط
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onSelect={(event) => {
+                                event.preventDefault();
+                                const shareUrl = getShareUrl(absoluteIndex);
+                                openShareWindow(
+                                  `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`,
+                                );
+                              }}
+                              className="gap-2"
+                            >
+                              <Facebook className="h-4 w-4" />
+                              فيسبوك
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={(event) => {
+                                event.preventDefault();
+                                const shareUrl = getShareUrl(absoluteIndex);
+                                const message = buildShareMessage(video.title, absoluteIndex);
+                                openShareWindow(
+                                  `https://wa.me/?text=${encodeURIComponent(`${message}\n${shareUrl}`)}`,
+                                );
+                              }}
+                              className="gap-2"
+                            >
+                              <MessageCircle className="h-4 w-4" />
+                              واتساب
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={(event) => {
+                                event.preventDefault();
+                                const shareUrl = getShareUrl(absoluteIndex);
+                                const message = buildShareMessage(video.title, absoluteIndex);
+                                openShareWindow(
+                                  `https://twitter.com/intent/tweet?text=${encodeURIComponent(message)}&url=${encodeURIComponent(shareUrl)}`,
+                                );
+                              }}
+                              className="gap-2"
+                            >
+                              <Twitter className="h-4 w-4" />
+                              منصة X
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={(event) => {
+                                event.preventDefault();
+                                const shareUrl = getShareUrl(absoluteIndex);
+                                const message = buildShareMessage(video.title, absoluteIndex);
+                                openShareWindow(
+                                  `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(message)}`,
+                                );
+                              }}
+                              className="gap-2"
+                            >
+                              <Send className="h-4 w-4" />
+                              تيليجرام
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <Button variant="outline" size="sm" asChild>
+                          <a href={buildVideoUrl(video.filename)} download>
+                            <Download className="mr-2 h-4 w-4" />
+                            تنزيل الفيديو
+                          </a>
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
