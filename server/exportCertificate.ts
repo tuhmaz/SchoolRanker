@@ -20,6 +20,17 @@ export interface CertificateSchoolInfo {
   principalName?: string;
   stampLabel?: string;
   officialDays?: string | number;
+  defaultReligion?: string;
+  completionExamStartDay?: string;
+  completionExamStartDate?: string;
+  completionExamEndDay?: string;
+  completionExamEndDate?: string;
+  bookDeliveryStartDay?: string;
+  bookDeliveryStartDate?: string;
+  bookDeliveryEndDay?: string;
+  bookDeliveryEndDate?: string;
+  termStartDay?: string;
+  termStartDate?: string;
 }
 
 export interface CertificateSubjectGrade {
@@ -272,6 +283,60 @@ const normalizeText = (value?: string | number | null) => {
   if (value == null) return "";
   const text = String(value).trim();
   return text;
+};
+
+const formatRangeLine = (
+  prefix: string,
+  startDay?: string,
+  startDate?: string,
+  endDay?: string,
+  endDate?: string,
+) => {
+  const startDayText = normalizeText(startDay);
+  const startDateText = normalizeText(startDate);
+  const endDayText = normalizeText(endDay);
+  const endDateText = normalizeText(endDate);
+
+  const hasStart = Boolean(startDayText || startDateText);
+  const hasEnd = Boolean(endDayText || endDateText);
+  if (!hasStart && !hasEnd) return "";
+
+  const parts: string[] = [prefix.trim()];
+  if (hasStart) {
+    parts.push("من يوم");
+    if (startDayText) parts.push(startDayText);
+    if (startDateText) parts.push("الموافق", startDateText);
+  }
+  if (hasEnd) {
+    parts.push("إلى يوم");
+    if (endDayText) parts.push(endDayText);
+    if (endDateText) parts.push("الموافق", endDateText);
+  }
+
+  return parts.join(" ").replace(/\s+/g, " ").trim();
+};
+
+const formatTermStartLine = (
+  academicYear?: string,
+  day?: string,
+  date?: string,
+) => {
+  const academicYearText = normalizeText(academicYear);
+  const dayText = normalizeText(day);
+  const dateText = normalizeText(date);
+  if (!academicYearText && !dayText && !dateText) return "";
+
+  const parts: string[] = ["3) يبدأ التدريس في الفصل الدراسي الأول"];
+  if (academicYearText) {
+    parts.push("للعام الدراسي", academicYearText);
+  }
+  if (dayText || dateText) {
+    parts.push("يوم");
+    if (dayText) parts.push(dayText);
+    if (dateText) parts.push("الموافق", dateText);
+  }
+
+  return parts.join(" ").replace(/\s+/g, " ").trim();
 };
 
 const parseNumeric = (value?: string | number | null): number | null => {
@@ -536,7 +601,8 @@ const populateCertificateSheet = (
   const birthDetails = formatBirthDetails(student);
   setValueCell(sheet, "J14", birthDetails.place);
   setValueCell(sheet, "M14", birthDetails.date);
-  setValueCell(sheet, "J15", student.religion);
+  const religion = normalizeText(student.religion) || normalizeText(info?.defaultReligion);
+  setValueCell(sheet, "J15", religion);
   setValueCell(sheet, "J16", student.address);
   setValueCell(sheet, "J17", info?.schoolName);
   setValueCell(sheet, "J18", info?.schoolAddress || info?.town);
@@ -611,6 +677,37 @@ const populateCertificateSheet = (
   }
   if (info?.stampLabel) {
     setLabelCellValue(sheet, "I70", info.stampLabel);
+  }
+
+  const completionLine = formatRangeLine(
+    "1) تعقد اختبارات الإكمال في المدرسة وتعتمد نتائجها",
+    info?.completionExamStartDay,
+    info?.completionExamStartDate,
+    info?.completionExamEndDay,
+    info?.completionExamEndDate,
+  );
+  if (completionLine) {
+    setCellPreserveStyle(sheet, "B26", completionLine);
+  }
+
+  const bookDeliveryLine = formatRangeLine(
+    "2) تسلم الكتب المدرسية للطلبة ويسجل المنقولون منهم",
+    info?.bookDeliveryStartDay,
+    info?.bookDeliveryStartDate,
+    info?.bookDeliveryEndDay,
+    info?.bookDeliveryEndDate,
+  );
+  if (bookDeliveryLine) {
+    setCellPreserveStyle(sheet, "B27", bookDeliveryLine);
+  }
+
+  const termStartLine = formatTermStartLine(info?.academicYear, info?.termStartDay, info?.termStartDate);
+  if (termStartLine) {
+    setCellPreserveStyle(sheet, "B28", termStartLine);
+  }
+
+  if (normalizeText(info?.academicYear)) {
+    setLabelCellValue(sheet, "B38", info?.academicYear);
   }
 };
 

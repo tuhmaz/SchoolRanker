@@ -1,4 +1,4 @@
-import type { JSX } from "react";
+import type { ChangeEvent, JSX } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { analyzeGradebookFile, type GradebookAnalysis, type GradebookStudent, type TermKey } from "@/lib/gradebookAnalyzer";
 import { FileUploadZone } from "@/components/FileUploadZone";
@@ -6,7 +6,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Accordion,
   AccordionContent,
@@ -14,7 +17,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
-import { AlertCircle, Download, FileSpreadsheet, Loader2, Table as TableIcon } from "lucide-react";
+import { AlertCircle, ChevronDown, Download, FileSpreadsheet, Loader2, Table as TableIcon } from "lucide-react";
 import { LoadingOverlay } from "@/components/LoadingOverlay";
 import { AdSlot } from "@/components/ads/AdSlot";
 import { AD_SLOTS } from "@/config/ads";
@@ -111,10 +114,40 @@ type CertificateExportPayload = {
     principalName?: string;
     stampLabel?: string;
     officialDays?: string;
+    defaultReligion?: string;
+    completionExamStartDay?: string;
+    completionExamStartDate?: string;
+    completionExamEndDay?: string;
+    completionExamEndDate?: string;
+    bookDeliveryStartDay?: string;
+    bookDeliveryStartDate?: string;
+    bookDeliveryEndDay?: string;
+    bookDeliveryEndDate?: string;
+    termStartDay?: string;
+    termStartDate?: string;
   };
   students: CertificateStudentPayload[];
   variant?: "final" | "first-term";
 };
+
+type CertificateOptionalFields = {
+  defaultReligion?: string;
+  completionExamStartDay?: string;
+  completionExamStartDate?: string;
+  completionExamEndDay?: string;
+  completionExamEndDate?: string;
+  bookDeliveryStartDay?: string;
+  bookDeliveryStartDate?: string;
+  bookDeliveryEndDay?: string;
+  bookDeliveryEndDate?: string;
+  termStartDay?: string;
+  termStartDate?: string;
+  academicYear?: string;
+  homeroomTeacher?: string;
+  principalName?: string;
+};
+
+const CERTIFICATE_OPTIONS_STORAGE_KEY = "certificateOptions";
 
 const sanitizeValue = (value?: string | number | null) => {
   if (value == null) return undefined;
@@ -243,11 +276,29 @@ const buildCertificatePayload = (
       sanitizeValue(settings?.schoolNationalId) ?? sanitizeValue(settings?.schoolInfo?.nationalId),
     grade: sanitizeValue(analysis.info.grade),
     division: sanitizeValue(analysis.info.division),
-    academicYear: sanitizeValue(settings?.year),
-    homeroomTeacher: sanitizeValue(settings?.teacherName),
-    principalName: sanitizeValue(settings?.principalName),
+    academicYear:
+      sanitizeValue(settings?.academicYear)
+        ?? sanitizeValue(settings?.year),
+    homeroomTeacher:
+      sanitizeValue(settings?.homeroomTeacher)
+        ?? sanitizeValue(settings?.teacherName),
+    principalName:
+      sanitizeValue(settings?.principalName)
+        ?? sanitizeValue(settings?.principal)
+        ?? sanitizeValue(settings?.principalManager),
     stampLabel: sanitizeValue(settings?.stampLabel),
     officialDays: sanitizeValue(settings?.officialDays),
+    defaultReligion: sanitizeValue(settings?.defaultReligion),
+    completionExamStartDay: sanitizeValue(settings?.completionExamStartDay),
+    completionExamStartDate: sanitizeValue(settings?.completionExamStartDate),
+    completionExamEndDay: sanitizeValue(settings?.completionExamEndDay),
+    completionExamEndDate: sanitizeValue(settings?.completionExamEndDate),
+    bookDeliveryStartDay: sanitizeValue(settings?.bookDeliveryStartDay),
+    bookDeliveryStartDate: sanitizeValue(settings?.bookDeliveryStartDate),
+    bookDeliveryEndDay: sanitizeValue(settings?.bookDeliveryEndDay),
+    bookDeliveryEndDate: sanitizeValue(settings?.bookDeliveryEndDate),
+    termStartDay: sanitizeValue(settings?.termStartDay),
+    termStartDate: sanitizeValue(settings?.termStartDate),
   } satisfies CertificateExportPayload["info"];
 
   return { info, students };
@@ -262,6 +313,64 @@ export default function GradebookAnalyzerPage() {
   const [showExportOverlay, setShowExportOverlay] = useState(false);
   const [exportCountdown, setExportCountdown] = useState(0);
   const [certificateVariant, setCertificateVariant] = useState<"final" | "first-term">("final");
+  const [showPrintOptions, setShowPrintOptions] = useState(true);
+  const [certificateOptions, setCertificateOptions] = useState<CertificateOptionalFields>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      const raw = window.localStorage.getItem(CERTIFICATE_OPTIONS_STORAGE_KEY);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") {
+        return parsed as CertificateOptionalFields;
+      }
+    } catch (_) {
+      // ignore corrupted storage
+    }
+    return {};
+  });
+  const hasCertificateOptionValues = Object.keys(certificateOptions).length > 0;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      if (hasCertificateOptionValues) {
+        window.localStorage.setItem(
+          CERTIFICATE_OPTIONS_STORAGE_KEY,
+          JSON.stringify(certificateOptions),
+        );
+      } else {
+        window.localStorage.removeItem(CERTIFICATE_OPTIONS_STORAGE_KEY);
+      }
+    } catch (_) {
+      // ignore storage errors
+    }
+  }, [certificateOptions, hasCertificateOptionValues]);
+
+  const handleCertificateOptionInput = (key: keyof CertificateOptionalFields) => (
+    event: ChangeEvent<HTMLInputElement>,
+  ) => {
+    const rawValue = event.target.value;
+    const trimmedValue = rawValue.trim();
+    setCertificateOptions((prev) => {
+      const next: CertificateOptionalFields = { ...prev };
+      if (!trimmedValue) {
+        delete next[key];
+      } else {
+        next[key] = rawValue;
+      }
+      return next;
+    });
+  };
+
+  const handleResetCertificateOptions = () => {
+    setCertificateOptions({});
+  };
+
+  const getOptionalInputClasses = (value?: string) => {
+    return value && value.trim()
+      ? "border-emerald-500 focus-visible:ring-emerald-500"
+      : undefined;
+  };
 
   useEffect(() => {
     if (!showExportOverlay) return;
@@ -354,8 +463,13 @@ export default function GradebookAnalyzerPage() {
         storedSettings = null;
       }
 
+      const settingsForPayload = {
+        ...(storedSettings ?? {}),
+        ...certificateOptions,
+      };
+
       const payload: CertificateExportPayload = {
-        ...buildCertificatePayload(analysis, storedSettings),
+        ...buildCertificatePayload(analysis, settingsForPayload),
         variant: certificateVariant,
       };
       let filename: string | undefined;
@@ -651,6 +765,247 @@ export default function GradebookAnalyzerPage() {
                 )}
               </div>
             </CardContent>
+          </Card>
+
+          <Card className={`${cardSurfaceClass} border-border/70`}>
+            <Collapsible open={showPrintOptions} onOpenChange={setShowPrintOptions}>
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-xl text-destructive">خيارات الطباعة الإضافية</CardTitle>
+                    <CardDescription>أدخل قيمًا اختيارية لتظهر داخل القالب عند تصدير الشهادات</CardDescription>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={handleResetCertificateOptions}
+                      disabled={!hasCertificateOptionValues}
+                      data-testid="button-reset-print-options"
+                    >
+                      إعادة تعيين
+                    </Button>
+                    <CollapsibleTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="gap-2 text-sm"
+                        data-testid="button-toggle-print-options"
+                      >
+                        {showPrintOptions ? "إخفاء الخيارات" : "عرض الخيارات"}
+                        <ChevronDown
+                          className={`h-4 w-4 transition-transform ${showPrintOptions ? "rotate-180" : "rotate-0"}`}
+                          aria-hidden="true"
+                        />
+                      </Button>
+                    </CollapsibleTrigger>
+                  </div>
+                </div>
+              </CardHeader>
+              <CollapsibleContent className="data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
+                <CardContent className="space-y-6 pt-0">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="default-religion">الديانة الافتراضية</Label>
+                      <Input
+                        id="default-religion"
+                        value={certificateOptions.defaultReligion ?? ""}
+                        onChange={handleCertificateOptionInput("defaultReligion")}
+                        placeholder="مثال: الإسلام"
+                        className={getOptionalInputClasses(certificateOptions.defaultReligion)}
+                        data-testid="input-default-religion"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        سيتم استخدامها تلقائياً للطلاب الذين لا تحتوي بياناتهم على خانة الديانة.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="academic-year">العام الدراسي</Label>
+                      <Input
+                        id="academic-year"
+                        value={certificateOptions.academicYear ?? ""}
+                        onChange={handleCertificateOptionInput("academicYear")}
+                        placeholder="مثال: 2024/2025"
+                        className={getOptionalInputClasses(certificateOptions.academicYear)}
+                        data-testid="input-academic-year"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="homeroom-teacher">اسم مربي/مربية الصف</Label>
+                      <Input
+                        id="homeroom-teacher"
+                        value={certificateOptions.homeroomTeacher ?? ""}
+                        onChange={handleCertificateOptionInput("homeroomTeacher")}
+                        placeholder="مثال: الأستاذة نور"
+                        className={getOptionalInputClasses(certificateOptions.homeroomTeacher)}
+                        data-testid="input-homeroom-teacher"
+                      />
+                      <p className="text-xs text-muted-foreground">يتم إدراج الاسم في   داخل الشهادة.</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="principal-name">اسم مدير/مديرة المدرسة</Label>
+                      <Input
+                        id="principal-name"
+                        value={certificateOptions.principalName ?? ""}
+                        onChange={handleCertificateOptionInput("principalName")}
+                        placeholder="مثال: الأستاذ سامي"
+                        className={getOptionalInputClasses(certificateOptions.principalName)}
+                        data-testid="input-principal-name"
+                      />
+                      <p className="text-xs text-muted-foreground">يتم إدراج الاسم في  داخل الشهادة.</p>
+                    </div>
+                  </div>
+
+                  <Separator className="opacity-40" />
+
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">اختبارات الإكمال</p>
+                      <p className="text-xs text-muted-foreground">يتم تكوين الجملة تلقائياً باستخدام القيم التالية.</p>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="completion-start-day">اليوم (بداية الفترة)</Label>
+                        <Input
+                          id="completion-start-day"
+                          value={certificateOptions.completionExamStartDay ?? ""}
+                          onChange={handleCertificateOptionInput("completionExamStartDay")}
+                          placeholder="مثال: الأحد"
+                          className={getOptionalInputClasses(certificateOptions.completionExamStartDay)}
+                          data-testid="input-completion-start-day"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="completion-start-date">التاريخ الموافق (بداية)</Label>
+                        <Input
+                          id="completion-start-date"
+                          value={certificateOptions.completionExamStartDate ?? ""}
+                          onChange={handleCertificateOptionInput("completionExamStartDate")}
+                          placeholder="مثال: 01/08/2025"
+                          className={getOptionalInputClasses(certificateOptions.completionExamStartDate)}
+                          data-testid="input-completion-start-date"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="completion-end-day">اليوم (نهاية الفترة)</Label>
+                        <Input
+                          id="completion-end-day"
+                          value={certificateOptions.completionExamEndDay ?? ""}
+                          onChange={handleCertificateOptionInput("completionExamEndDay")}
+                          placeholder="مثال: الثلاثاء"
+                          className={getOptionalInputClasses(certificateOptions.completionExamEndDay)}
+                          data-testid="input-completion-end-day"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="completion-end-date">التاريخ الموافق (نهاية)</Label>
+                        <Input
+                          id="completion-end-date"
+                          value={certificateOptions.completionExamEndDate ?? ""}
+                          onChange={handleCertificateOptionInput("completionExamEndDate")}
+                          placeholder="مثال: 03/08/2025"
+                          className={getOptionalInputClasses(certificateOptions.completionExamEndDate)}
+                          data-testid="input-completion-end-date"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <Separator className="opacity-40" />
+
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">تسليم الكتب المدرسية</p>
+                      <p className="text-xs text-muted-foreground">املأ الفترة الزمنية ليتم إدراجها في السطر الثاني.</p>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="books-start-day">اليوم (بداية الفترة)</Label>
+                        <Input
+                          id="books-start-day"
+                          value={certificateOptions.bookDeliveryStartDay ?? ""}
+                          onChange={handleCertificateOptionInput("bookDeliveryStartDay")}
+                          placeholder="مثال: الأربعاء"
+                          className={getOptionalInputClasses(certificateOptions.bookDeliveryStartDay)}
+                          data-testid="input-books-start-day"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="books-start-date">التاريخ الموافق (بداية)</Label>
+                        <Input
+                          id="books-start-date"
+                          value={certificateOptions.bookDeliveryStartDate ?? ""}
+                          onChange={handleCertificateOptionInput("bookDeliveryStartDate")}
+                          placeholder="مثال: 10/08/2025"
+                          className={getOptionalInputClasses(certificateOptions.bookDeliveryStartDate)}
+                          data-testid="input-books-start-date"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="books-end-day">اليوم (نهاية الفترة)</Label>
+                        <Input
+                          id="books-end-day"
+                          value={certificateOptions.bookDeliveryEndDay ?? ""}
+                          onChange={handleCertificateOptionInput("bookDeliveryEndDay")}
+                          placeholder="مثال: الخميس"
+                          className={getOptionalInputClasses(certificateOptions.bookDeliveryEndDay)}
+                          data-testid="input-books-end-day"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="books-end-date">التاريخ الموافق (نهاية)</Label>
+                        <Input
+                          id="books-end-date"
+                          value={certificateOptions.bookDeliveryEndDate ?? ""}
+                          onChange={handleCertificateOptionInput("bookDeliveryEndDate")}
+                          placeholder="مثال: 12/08/2025"
+                          className={getOptionalInputClasses(certificateOptions.bookDeliveryEndDate)}
+                          data-testid="input-books-end-date"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <Separator className="opacity-40" />
+
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">بداية التدريس للفصل الأول</p>
+                      <p className="text-xs text-muted-foreground">سيتم دمج هذه القيم مع العام الدراسي لإكمال السطر.</p>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="term-start-day">اليوم</Label>
+                        <Input
+                          id="term-start-day"
+                          value={certificateOptions.termStartDay ?? ""}
+                          onChange={handleCertificateOptionInput("termStartDay")}
+                          placeholder="مثال: الأحد"
+                          className={getOptionalInputClasses(certificateOptions.termStartDay)}
+                          data-testid="input-term-start-day"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="term-start-date">التاريخ الموافق</Label>
+                        <Input
+                          id="term-start-date"
+                          value={certificateOptions.termStartDate ?? ""}
+                          onChange={handleCertificateOptionInput("termStartDate")}
+                          placeholder="مثال: 01/09/2025"
+                          className={getOptionalInputClasses(certificateOptions.termStartDate)}
+                          data-testid="input-term-start-date"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </CollapsibleContent>
+            </Collapsible>
           </Card>
 
           <Card className={`${cardSurfaceClass} border-border/70`}>

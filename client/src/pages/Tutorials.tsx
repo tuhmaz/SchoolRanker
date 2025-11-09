@@ -70,7 +70,7 @@ const videos = [
   },
 ] as const;
 
-const buildVideoUrl = (filename: string) => `/tutorials/videos/${encodeURIComponent(filename)}`;
+const buildVideoUrl = (filename: string) => `/temp/videos/${encodeURIComponent(filename)}`;
 
 const groupVideos = <T,>(items: readonly T[], size: number): T[][] => {
   const groups: T[][] = [];
