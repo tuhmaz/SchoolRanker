@@ -14,6 +14,67 @@ export interface Student {
   status?: string;
 }
 
+type HeaderLookup = {
+  name: number;
+  division?: number;
+  class?: number;
+  nationalId?: number;
+  program?: number;
+  status?: number;
+  birthDate?: number;
+};
+
+function findHeaderIndices(row: string[]): HeaderLookup {
+  const lookup: HeaderLookup = { name: -1 };
+  row.forEach((cell, idx) => {
+    if (!cell) return;
+    const normalized = cell.replace(/\s+/g, '');
+    if (lookup.name === -1 && /اسمالطالب/.test(normalized)) lookup.name = idx;
+    if (lookup.division === undefined && /الشعبة/.test(normalized)) lookup.division = idx;
+    if (lookup.class === undefined && /الصف/.test(normalized)) lookup.class = idx;
+    if (lookup.nationalId === undefined && /(الرقم|الشخصي)/.test(normalized)) lookup.nationalId = idx;
+    if (lookup.program === undefined && /(المرحلة|القسم|المسار)/.test(normalized)) lookup.program = idx;
+    if (lookup.status === undefined && /حالةالقيد|حالــةالقيد/.test(normalized)) lookup.status = idx;
+    if (lookup.birthDate === undefined && /تاريخالميلاد/.test(normalized)) lookup.birthDate = idx;
+  });
+  return lookup;
+}
+
+function findLabelValueInTopRows(rows: any[][], labelRegex: RegExp, maxRows = 30): string {
+  for (let i = 0; i < Math.min(rows.length, maxRows); i++) {
+    const row = rows[i];
+    if (!row) continue;
+    const labelIdx = row.findIndex((cell: any) => cell && labelRegex.test(String(cell)));
+    if (labelIdx !== -1) {
+      const value = findValueNearLabel(row, labelIdx);
+      if (value) return value;
+    }
+  }
+  return '';
+}
+
+function findStandaloneValue(rows: any[][], labelRegex: RegExp, maxRows = 30): string {
+  for (let i = 0; i < Math.min(rows.length, maxRows); i++) {
+    const row = rows[i];
+    if (!row) continue;
+    for (const cell of row) {
+      if (!cell) continue;
+      const text = String(cell).trim();
+      if (!text) continue;
+      if (labelRegex.test(text)) {
+        const cleaned = text.replace(labelRegex, '').replace(/[:\-–]/g, '').trim();
+        return cleaned || text;
+      }
+    }
+  }
+  return '';
+}
+
+function isIgnoredHeaderValue(value: string): boolean {
+  const normalized = value.replace(/\s+/g, '').trim();
+  return !normalized || normalized === 'الكل';
+}
+
 function findValueNearLabel(row: any[], labelIdx: number): string {
   for (let j = labelIdx - 1; j >= 0; j--) {
     const candidate = String(row[j] ?? '').trim();
@@ -549,5 +610,254 @@ export async function parseMinistryFile(file: File): Promise<ParsedData> {
   });
 }
 
-// Legacy alias
+// Legacy alias (default to ministry parser)
 export const parseExcelFile = parseMinistryFile;
+
+function normalizeClassLabel(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  if (/^الصف/.test(trimmed)) return trimmed;
+  return `الصف ${trimmed}`;
+}
+
+function sanitizeDivision(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return 'بدون شعبة';
+  return trimmed.replace(/[^\u0600-\u06FF0-9A-Za-z\s]/g, '').trim() || 'بدون شعبة';
+}
+
+export async function parseUnifiedReport(file: File): Promise<ParsedData> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      try {
+        const data = e.target?.result;
+        if (!data) {
+          reject(new Error('تعذر قراءة الملف'));
+          return;
+        }
+
+        const workbook = XLSX.read(data as string, { type: 'binary' });
+        if (!workbook.SheetNames.length) {
+          reject(new Error('الملف لا يحتوي على أي أوراق عمل'));
+          return;
+        }
+
+        const allStudents: Student[] = [];
+        const sheetResults: NonNullable<ParsedData['sheets']> = [];
+        const warnings: string[] = [];
+        const classMap = new Map<string, Map<string, Set<string>>>();
+        let hasNationalIdColumn = false;
+        let schoolInfo: ParsedData['schoolInfo'] = undefined;
+
+        workbook.SheetNames.forEach((sheetName, sheetIndex) => {
+          const worksheet = workbook.Sheets[sheetName];
+          const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as any[][];
+          if (!rows || !rows.length) {
+            return;
+          }
+
+          if (!schoolInfo) {
+            const metaRows = rows.slice(0, 30);
+            const directorate = findStandaloneValue(metaRows, /مديرية/);
+            const schoolName = findStandaloneValue(metaRows, /مدرسة|مدرسة\s+/);
+            const program = findLabelValueInTopRows(metaRows, /(المرحلة|القسم|المسار)/) || findStandaloneValue(metaRows, /المرحلة/);
+            if (directorate || schoolName || program) {
+              schoolInfo = {
+                directorate: directorate || undefined,
+                school: schoolName || undefined,
+                program: program || undefined,
+              };
+            }
+          }
+
+          const headerRowIndex = rows.findIndex((row) =>
+            row.some((cell: any) => typeof cell === 'string' && /اسم\s*الطالب/.test(String(cell))),
+          );
+
+          if (headerRowIndex === -1) {
+            warnings.push(`تعذر العثور على ترويسة "اسم الطالب" في الورقة "${sheetName}"، تم تجاهلها.`);
+            return;
+          }
+
+          const headerRow = rows[headerRowIndex].map((cell: any) => String(cell ?? '').trim());
+          const headerLookup = findHeaderIndices(headerRow as string[]);
+
+          if (headerLookup.name === -1) {
+            warnings.push(`لا يوجد عمود للاسم في الورقة "${sheetName}".`);
+            return;
+          }
+          if (headerLookup.nationalId !== undefined && headerLookup.nationalId !== -1) {
+            hasNationalIdColumn = true;
+          }
+
+          const topRows = rows.slice(0, headerRowIndex);
+          let classNameSource: 'label' | 'row' | 'default' = 'default';
+          let divisionSource: 'label' | 'row' | 'default' = 'default';
+
+          let className = findLabelValueInTopRows(topRows, /الصف/);
+          if (className) {
+            classNameSource = 'label';
+            if (isIgnoredHeaderValue(className)) {
+              className = '';
+              classNameSource = 'default';
+            }
+          }
+          let division = findLabelValueInTopRows(topRows, /الشعبة/);
+          if (division) {
+            divisionSource = 'label';
+            if (isIgnoredHeaderValue(division)) {
+              division = '';
+              divisionSource = 'default';
+            }
+          }
+
+          const firstDataRow = rows[headerRowIndex + 1] ?? [];
+          if (!className && headerLookup.class !== undefined) {
+            className = String(firstDataRow[headerLookup.class] ?? '').trim();
+            if (className) {
+              classNameSource = 'row';
+              if (isIgnoredHeaderValue(className)) {
+                className = '';
+                classNameSource = 'default';
+              }
+            }
+          }
+          if (!division && headerLookup.division !== undefined) {
+            division = String(firstDataRow[headerLookup.division] ?? '').trim();
+            if (division) {
+              divisionSource = 'row';
+              if (isIgnoredHeaderValue(division)) {
+                division = '';
+                divisionSource = 'default';
+              }
+            }
+          }
+
+          const hadExplicitClass = !!className;
+          const hadExplicitDivision = !!division;
+
+          if (!className) {
+            className = `غير محدد (${sheetName})`;
+          } else {
+            className = normalizeClassLabel(className);
+          }
+
+          if (!division) {
+            division = `بدون شعبة (${sheetName})`;
+          } else {
+            division = sanitizeDivision(division);
+            if (!division) {
+              division = `بدون شعبة (${sheetName})`;
+            }
+          }
+
+          if (!hadExplicitClass) {
+            warnings.push(`الصف: ${className}`);
+          }
+
+          if (!hadExplicitDivision) {
+            warnings.push(`الشعبة: ${division}`);
+          }
+
+          if (!classMap.has(className)) {
+            classMap.set(className, new Map());
+          }
+          const divisionMap = classMap.get(className)!;
+          if (!divisionMap.has(division)) {
+            divisionMap.set(division, new Set());
+          }
+
+          const sheetStudents: Student[] = [];
+          for (let rowIndex = headerRowIndex + 1; rowIndex < rows.length; rowIndex++) {
+            const row = rows[rowIndex];
+            if (!row || row.every((cell: any) => String(cell ?? '').trim() === '')) {
+              continue;
+            }
+
+            const studentName = String(row[headerLookup.name] ?? '').trim();
+            if (!studentName) continue;
+
+            let studentDivision = division;
+            if (headerLookup.division !== undefined) {
+              const cellValue = String(row[headerLookup.division] ?? '').trim();
+              if (cellValue) {
+                studentDivision = sanitizeDivision(cellValue);
+              }
+            }
+
+            let nationalId = '';
+            if (headerLookup.nationalId !== undefined && headerLookup.nationalId !== -1) {
+              nationalId = String(row[headerLookup.nationalId] ?? '').trim();
+            }
+
+            const birthDate = headerLookup.birthDate !== undefined ? String(row[headerLookup.birthDate] ?? '').trim() : '';
+            const status = headerLookup.status !== undefined ? String(row[headerLookup.status] ?? '').trim() : '';
+            const parsedName = parseFullName(studentName);
+            const studentId = nationalId || `sheet-${sheetIndex}-row-${rowIndex}`;
+
+            const student: Student = {
+              id: studentId,
+              name: studentName,
+              firstName: parsedName.first,
+              fatherName: parsedName.father,
+              grandName: parsedName.grand,
+              familyName: parsedName.family,
+              class: className,
+              division: studentDivision,
+              nationalId,
+              birthDate,
+              status,
+            };
+
+            sheetStudents.push(student);
+            allStudents.push(student);
+          }
+
+          if (sheetStudents.length > 0) {
+            sheetResults.push({
+              sheetName,
+              className,
+              division,
+              students: sheetStudents,
+            });
+          }
+        });
+
+        if (!hasNationalIdColumn) {
+          reject(new Error('النموذج لا يحتوي على عمود الرقم الوطني. يرجى استخدام كشف الطلبة الرسمي.'));
+          return;
+        }
+
+        if (!allStudents.length) {
+          reject(new Error('تعذر استخراج أي طالب من النماذج المرفوعة'));
+          return;
+        }
+
+        const classes = Array.from(classMap.entries()).map(([className, divisionMap]) => ({
+          className,
+          divisions: Array.from(divisionMap.entries()).map(([division]) => ({
+            id: `${className}-${division}`,
+            division,
+            subjects: [],
+          })),
+        }));
+
+        resolve({
+          students: allStudents,
+          classes,
+          schoolInfo,
+          sheets: sheetResults,
+          warnings: warnings.length ? warnings : undefined,
+        });
+      } catch (error: any) {
+        console.error('Error parsing unified report:', error);
+        reject(new Error('حدث خطأ أثناء قراءة النموذج الحديث. تأكد من أن الملف بصيغة Excel صحيحة.'));
+      }
+    };
+
+    reader.onerror = () => reject(new Error('فشل في قراءة الملف'));
+    reader.readAsBinaryString(file);
+  });
+}

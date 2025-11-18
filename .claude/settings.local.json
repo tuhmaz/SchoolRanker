@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(node -p:*)",
+      "Bash(node -e:*)",
+      "Bash(node analyze_template.js:*)",
+      "Bash(node check_output.js:*)",
+      "Bash(node check_template_L.js:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm start)",
+      "Bash(node:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -66,23 +66,22 @@ const normalizeArabicDigits = (value: string): string => {
   return value.replace(/[\u0660-\u0669]/g, (digit) => ARABIC_DIGIT_MAP[digit] ?? digit);
 };
 
-
 // ترتيب الكلمات المفتاحية من الأطول للأقصر لتجنب التطابقات الجزئية
 // مثلاً: "ثاني ثانوي" يجب أن يُفحص قبل "ثاني" لتجنب الخلط بين الصف الثاني والثاني ثانوي
 const GRADE_KEYWORDS: Array<{ grade: number; keywords: string[] }> = [
-  { grade: 12, keywords: ["ثاني ثانوي", "الثاني ثانوي", "ثاني عشر", "الثاني عشر", "12"] },
-  { grade: 11, keywords: ["اول ثانوي", "الاول ثانوي", "حادي عشر", "الحادي عشر", "11"] },
-  { grade: 10, keywords: ["العاشر", "عاشر", "10"] },
-  { grade: 9, keywords: ["التاسع", "تاسع", "9"] },
-  { grade: 8, keywords: ["الثامن", "ثامن", "8"] },
-  { grade: 7, keywords: ["السابع", "سابع", "7"] },
-  { grade: 6, keywords: ["السادس", "سادس", "6"] },
-  { grade: 5, keywords: ["الخامس", "خامس", "5"] },
-  { grade: 4, keywords: ["الرابع", "رابع", "4"] },
-  { grade: 3, keywords: ["الثالث", "ثالث", "3"] },
-  { grade: 2, keywords: ["الثاني", "ثاني", "2"] },
-  { grade: 1, keywords: ["الاول", "اول", "1"] },
-  { grade: 0, keywords: ["روضة", "رياض الاطفال", "kg2", "kg 2", "kg", "kg1", "0"] },
+  { grade: 12, keywords: ["ثاني ثانوي", "الثاني ثانوي", "ثاني عشر", "الثاني عشر", "الصف الثاني عشر", "صف ثاني ثانوي", "12"] },
+  { grade: 11, keywords: ["اول ثانوي", "الاول ثانوي", "حادي عشر", "الحادي عشر", "الصف الحادي عشر", "صف اول ثانوي", "11"] },
+  { grade: 10, keywords: ["العاشر", "عاشر", "الصف العاشر", "صف عاشر", "10"] },
+  { grade: 9, keywords: ["التاسع", "تاسع", "الصف التاسع", "صف تاسع", "9"] },
+  { grade: 8, keywords: ["الثامن", "ثامن", "الصف الثامن", "صف ثامن", "8"] },
+  { grade: 7, keywords: ["السابع", "سابع", "الصف السابع", "صف سابع", "7"] },
+  { grade: 6, keywords: ["السادس", "سادس", "الصف السادس", "صف سادس", "6"] },
+  { grade: 5, keywords: ["الخامس", "خامس", "الصف الخامس", "صف خامس", "5"] },
+  { grade: 4, keywords: ["الرابع", "رابع", "الصف الرابع", "صف رابع", "4"] },
+  { grade: 3, keywords: ["الثالث", "ثالث", "الصف الثالث", "صف ثالث", "3"] },
+  { grade: 2, keywords: ["الثاني", "ثاني", "الصف الثاني", "صف ثاني", "2"] },
+  { grade: 1, keywords: ["الاول", "اول", "الصف الاول", "صف اول", "1"] },
+  { grade: 0, keywords: ["روضة", "رياض الاطفال", "الروضة", "صف روضة", "kg2", "kg 2", "kg", "kg1", "0"] },
 ];
 
 const normalizeClassName = (className: string): string => {
@@ -126,19 +125,63 @@ const extractGradeLevel = (className?: string): number | null => {
   return null;
 };
 
+const LOWER_LEVEL_KEYWORDS = [
+  "روضه",
+  "روضة",
+  "رياضالاطفال",
+  "رياضالاطفال",
+  "kg",
+  "كيجي",
+  "تمهيدي",
+];
+
+const LOWER_ELEMENTARY_KEYWORDS = [
+  "الاول",
+  "اول",
+  "الثاني",
+  "ثاني",
+  "الثالث",
+  "ثالث",
+];
+
+const isLowerLevelClassName = (className?: string): boolean => {
+  if (!className) return false;
+  const normalized = normalizeClassName(className).replace(/\s+/g, '');
+  if (!normalized) return false;
+
+  if (LOWER_LEVEL_KEYWORDS.some((keyword) => normalized.includes(keyword))) {
+    return true;
+  }
+
+  if (
+    LOWER_ELEMENTARY_KEYWORDS.some(
+      (keyword) => normalized.includes(keyword) && !normalized.includes('ثانوي'),
+    )
+  ) {
+    return true;
+  }
+
+  const digitMatch = normalized.match(/\b(0|1|2|3)\b/);
+  if (digitMatch && !normalized.includes('ثانوي')) {
+    return true;
+  }
+
+  return false;
+};
+
 const selectTemplateFilename = (classes: ClassRecord[]): string => {
   const totalClasses = classes.length;
   const detectedGrades = classes
     .map((group) => extractGradeLevel(group?.className))
     .filter((grade): grade is number => grade != null);
 
-  const hasUpperGrades = detectedGrades.some((grade) => grade >= 5);
+  const hasUpperGrades = detectedGrades.some((grade) => grade >= 4);
   if (hasUpperGrades) {
     return "alem_a.xlsx";
   }
 
   const allDetectedAreLower =
-    detectedGrades.length > 0 && detectedGrades.every((grade) => grade <= 4);
+    detectedGrades.length > 0 && detectedGrades.every((grade) => grade <= 3);
   if (allDetectedAreLower && detectedGrades.length === totalClasses) {
     return "alem_b.xlsx";
   }
@@ -197,7 +240,7 @@ const extractReferenceNumberFromLabel = (value?: string): number | null => {
 
 const collectHeaderReferenceNumbers = (
   sheet: ExcelJS.Worksheet | undefined,
-  refMap: Map<number, { sheet: ExcelJS.Worksheet; row: number }>,
+  allRefs: Array<{ refNumber: number; sheet: ExcelJS.Worksheet; row: number }>,
 ): number => {
   if (!sheet) return 0;
   let added = 0;
@@ -206,8 +249,8 @@ const collectHeaderReferenceNumbers = (
       const refNumber = extractReferenceNumberFromLabel(
         cellValueToString(cell.value as ExcelJS.CellValue | undefined),
       );
-      if (refNumber != null && !refMap.has(refNumber)) {
-        refMap.set(refNumber, { sheet, row: rowNumber });
+      if (refNumber != null) {
+        allRefs.push({ refNumber, sheet, row: rowNumber });
         added++;
       }
     });
@@ -358,18 +401,28 @@ export async function generateMainGradebook(payload: MainGradebookPayload): Prom
   const originalClasses = payload.classes;
   const originalStudents = payload.students;
 
+  console.log("🔍 Original classes before filtering:");
+  originalClasses.forEach((classRecord, idx) => {
+    const grade = extractGradeLevel(classRecord.className);
+    console.log(`  ${idx + 1}. ${classRecord.className} → Grade: ${grade ?? 'NOT DETECTED'}`);
+  });
+  console.log(`📋 Template preference: ${payload.templatePreference || 'auto'}`);
+
   const filterByPreference = (classes: ClassRecord[]): ClassRecord[] => {
     if (payload.templatePreference === "lower") {
       return classes.filter((group) => {
         const grade = extractGradeLevel(group?.className);
-        if (grade == null) return true;
-        return grade <= 4;
+        if (grade == null) return isLowerLevelClassName(group?.className);
+        return grade <= 3;
       });
     }
     if (payload.templatePreference === "upper") {
       return classes.filter((group) => {
         const grade = extractGradeLevel(group?.className);
-        return grade != null && grade >= 5;
+        if (grade == null) {
+          return !isLowerLevelClassName(group?.className);
+        }
+        return grade >= 4; // يشمل من الرابع حتى الثاني ثانوي
       });
     }
     return classes;
@@ -378,6 +431,11 @@ export async function generateMainGradebook(payload: MainGradebookPayload): Prom
   const classes = filterByPreference(originalClasses).slice();
 
   console.log("📊 Filtered classes count:", classes.length);
+  console.log("✅ Classes after filtering:");
+  classes.forEach((classRecord, idx) => {
+    const grade = extractGradeLevel(classRecord.className);
+    console.log(`  ${idx + 1}. ${classRecord.className} → Grade: ${grade ?? '?'}`);
+  });
 
   const gradeComparator = (a: ClassRecord, b: ClassRecord) => {
     const gradeA = extractGradeLevel(a?.className) ?? Number.POSITIVE_INFINITY;
@@ -387,8 +445,8 @@ export async function generateMainGradebook(payload: MainGradebookPayload): Prom
   };
 
   // ترتيب الصفوف حسب الدرجة (من الأصغر إلى الأكبر)
-  // الصفوف الدنيا: روضة → رابع
-  // الصفوف العليا: خامس → ثاني ثانوي
+  // الصفوف الدنيا: روضة → ثالث
+  // الصفوف العليا: رابع → ثاني ثانوي
   if (payload.templatePreference === "lower" || payload.templatePreference === "upper") {
     console.log("🔄 Sorting classes by grade level...");
     classes.sort(gradeComparator);
@@ -448,15 +506,17 @@ export async function generateMainGradebook(payload: MainGradebookPayload): Prom
     const grade = extractGradeLevel(studentClass);
 
     if (payload.templatePreference === "lower") {
-      // استبعاد الطلاب الذين في صفوف عليا معروفة (درجة >= 5)
-      if (grade != null && grade >= 5) return false;
-      // قبول الطلاب في الصفوف الدنيا (درجة <= 4) أو غير المحددة
-      // طالما أن اسم صفهم موجود في قائمة الصفوف المسموحة
+      if (grade != null && grade >= 4) return false;
+      if (grade == null && !isLowerLevelClassName(studentClass)) return false;
       return allowedNormalizedClassNames.has(normalized);
     }
 
     if (payload.templatePreference === "upper") {
-      if (grade == null || grade < 5) return false;
+      if (grade == null) {
+        if (isLowerLevelClassName(studentClass)) return false;
+        return allowedNormalizedClassNames.has(normalized);
+      }
+      if (grade < 4) return false; // يشمل من الرابع فما فوق
       return allowedNormalizedClassNames.has(normalized);
     }
 
@@ -521,171 +581,176 @@ export async function generateMainGradebook(payload: MainGradebookPayload): Prom
       studentsByClassDivision.set(key, list);
     });
 
-  const refMap = new Map<number, { sheet: ExcelJS.Worksheet; row: number }>();
+  // جمع كل المراجع من جميع الشيتات (بما في ذلك المكررات)
+  const allRefsArray: Array<{ refNumber: number; sheet: ExcelJS.Worksheet; row: number }> = [];
   const sheetsToSearch = [workbook.worksheets[0], workbook.worksheets[1]];
 
   console.log("🔍 Searching for reference numbers in template...");
+  console.log(`📑 Sheets to use: ${sheetsToSearch.length} sheets`);
 
   sheetsToSearch.forEach((sheet, index) => {
     if (!sheet) return;
     // زيادة الحد الأقصى للبحث ليشمل جميع صفوف القالب
-    const maxRows = Math.max(sheet.rowCount, sheet.actualRowCount ?? 0, 750);
+    const maxRows = Math.max(sheet.rowCount, sheet.actualRowCount ?? 0, 3200);
     let foundInSheet = 0;
 
     for (let row = 1; row <= maxRows; row++) {
       for (const column of ["J", "K"]) {
         const numericValue = getNumericCellValue(sheet.getCell(`${column}${row}`));
-        if (numericValue != null && !refMap.has(numericValue)) {
-          refMap.set(numericValue, { sheet, row });
+        if (numericValue != null) {
+          allRefsArray.push({ refNumber: numericValue, sheet, row });
           foundInSheet++;
         }
       }
     }
 
-    console.log(`  ✅ Sheet ${index + 1}: Found ${foundInSheet} references (${sheet.rowCount} rows scanned)`);
+    console.log(`  ✅ Sheet ${index + 1}: Found ${foundInSheet} references (${maxRows} rows scanned)`);
   });
 
-  if (refMap.size === 0) {
+  if (allRefsArray.length === 0) {
     console.log("[fallback] Legacy reference columns empty. Scanning header labels...");
     sheetsToSearch.forEach((sheet, index) => {
-      const added = collectHeaderReferenceNumbers(sheet, refMap);
+      const added = collectHeaderReferenceNumbers(sheet, allRefsArray);
       console.log(`  [fallback] Header scan sheet ${index + 1}: Found ${added} references via labels`);
     });
   }
-  if (refMap.size === 0) {
+  if (allRefsArray.length === 0) {
     throw new Error("تعذر العثور على أرقام المراجع داخل القالب");
   }
 
-  // للصفوف الدنيا: نستخدم refStep = 1 (كل مرجع)
-  // للصفوف العليا: نستخدم refStep = 2 (كل مرجعين)
-  const refStep = payload.templatePreference === "lower" ? 1 : 2;
+  console.log(`📊 Total references found (including duplicates): ${allRefsArray.length}`);
 
-  // ترتيب المراجع:
-  // - للصفوف الدنيا: نرتب حسب رقم المرجع نفسه (1, 2, 3, ...) وليس حسب موقع الصف
-  // - للصفوف العليا: نرتب حسب رقم المرجع أيضاً
+  // إزالة المكررات: نحتفظ بأول ظهور لكل رقم مرجع فريد
+  const uniqueRefs = new Map<number, typeof allRefsArray[0]>();
+  allRefsArray.forEach(ref => {
+    if (!uniqueRefs.has(ref.refNumber)) {
+      uniqueRefs.set(ref.refNumber, ref);
+    }
+  });
+
+  console.log(`🔧 Filtered to unique references: ${allRefsArray.length} → ${uniqueRefs.size}`);
+
+  // ترتيب حسب رقم المرجع، وعند التساوي حسب الشيت ثم الصف
+  const sortedUniqueRefs = Array.from(uniqueRefs.values()).sort((a, b) => {
+    // أولاً: حسب رقم المرجع
+    const refCompare = a.refNumber - b.refNumber;
+    if (refCompare !== 0) return refCompare;
+    // ثانياً: حسب اسم الشيت (في حالة المكررات النادرة)
+    const sheetCompare = a.sheet.name.localeCompare(b.sheet.name);
+    if (sheetCompare !== 0) return sheetCompare;
+    // ثالثاً: حسب رقم الصف
+    return a.row - b.row;
+  });
+
+  // إنشاء refMap باستخدام أرقام المراجع الفعلية
+  const refMap = new Map<number, { sheet: ExcelJS.Worksheet; row: number }>();
+  sortedUniqueRefs.forEach((ref) => {
+    refMap.set(ref.refNumber, { sheet: ref.sheet, row: ref.row });
+  });
+
   const sortedRefs = Array.from(refMap.keys()).sort((a, b) => a - b);
 
-  console.log("🔢 Sorted reference numbers:", sortedRefs.slice(0, 10).join(", "), "...");
+  console.log("🔢 Sorted reference numbers:", sortedRefs.slice(0, 10).join(", "), sortedRefs.length > 10 ? "..." : "");
+  if (sortedRefs.length <= 50) {
+    console.log("📋 All reference numbers:", sortedRefs.join(", "));
+  }
   console.log("📏 Total references available:", sortedRefs.length);
-  console.log("⚙️  Using refStep:", refStep);
+  console.log("⚙️  Using sequential reference allocation (simple index increment)");
 
-  const usedRefs = new Set<number>();
-  const findNextAvailableRef = (minRef: number): number | null => {
-    for (const ref of sortedRefs) {
-      if (usedRefs.has(ref)) continue;
-      if (ref >= minRef) {
-        usedRefs.add(ref);
-        return ref;
-      }
+  // طباعة خريطة المراجع لفهم التوزيع
+  console.log("\n🗺️  Reference Distribution:");
+  console.log(`  First 10 refs: ${sortedRefs.slice(0, 10).join(", ")}`);
+  console.log(`  Last 10 refs: ${sortedRefs.slice(-10).join(", ")}`);
+
+  // إحصاء المراجع حسب الشيت
+  const refsBySheet = new Map<string, number>();
+  sortedRefs.forEach(ref => {
+    const slot = refMap.get(ref);
+    if (slot) {
+      const sheetName = slot.sheet.name;
+      refsBySheet.set(sheetName, (refsBySheet.get(sheetName) || 0) + 1);
     }
-    return null;
+  });
+
+  console.log("\n📊 References per sheet:");
+  refsBySheet.forEach((count, sheetName) => {
+    console.log(`  ${sheetName}: ${count} references`);
+  });
+
+  let lastUsedRefIndex = -1;
+
+  const findNextAvailableRef = (): number | null => {
+    // البحث البسيط والمباشر: الانتقال إلى المرجع التالي في الترتيب التسلسلي
+    if (lastUsedRefIndex + 1 < sortedRefs.length) {
+      lastUsedRefIndex++;
+      return sortedRefs[lastUsedRefIndex];
+    } else {
+      // عند نفاد الجداول، نتوقف عن المعالجة
+      console.log(`❌ نفدت جميع الجداول المتاحة. تم استخدام ${lastUsedRefIndex + 1} من أصل ${sortedRefs.length} جدول.`);
+      return null;
+    }
   };
 
-  const classesAndDivisions = Array.from(
-    new Set(
-      classes.flatMap((group) =>
-        (group.divisions || []).map((division) =>
-          [group.className, division.division].filter(Boolean).join(" - ").trim(),
-        ),
-      ),
-    ),
-  )
-    .filter(Boolean)
-    .join(", ");
-
-  const allSubjects = Array.from(
-    new Set(
-      classes.flatMap((group) =>
-        (group.divisions || []).flatMap((division) =>
-          (division.subjects || [])
-            .map((subject) => subject?.name?.trim())
-            .filter((name): name is string => !!name && name.length > 0),
-        ),
-      ),
-    ),
-  )
-    .filter(Boolean)
-    .join(", ");
-
-  // لا نقوم بتعبئة الأوراق الثانوية للحفاظ على تصميم القالب كما هو
-
-  let lastUsedRef: number | null = null;
-  let outOfSpace = false;
+  console.log("📝 Starting to distribute students to pages...");
+  console.log(`📋 Processing order: ${classes.map(c => c.className).join(" → ")}`);
 
   for (const group of classes) {
-    if (outOfSpace) break;
-    for (const division of group.divisions || []) {
-      if (outOfSpace) break;
+    console.log(`\n🏫 Processing class: ${group.className} (Grade ${extractGradeLevel(group.className)})`);
 
+    for (const division of group.divisions || []) {
       const subjects = (division.subjects || [])
         .map((subject) => subject?.name?.trim())
         .filter((name): name is string => !!name && name.length > 0);
 
-      if (subjects.length === 0) continue;
+      if (subjects.length === 0) {
+        console.log(`  ⚠️  No subjects for division ${division.division} - skipping`);
+        continue;
+      }
 
       const studentKey = `${group.className || ""}|||${division.division || ""}`;
       const classStudents = studentsByClassDivision.get(studentKey) ?? [];
-      if (classStudents.length === 0) continue;
+      if (classStudents.length === 0) {
+        console.log(`  ⚠️  No students found for ${group.className} - ${division.division}`);
+        continue;
+      }
 
       const studentNames = classStudents.map((student) => student.name).filter((name): name is string => !!name);
+      console.log(`  📌 Division ${division.division}: ${studentNames.length} students, ${subjects.length} subjects`);
 
       for (const subjectName of subjects) {
-        if (outOfSpace) break;
+        console.log(`    📖 Subject: ${subjectName}`);
 
         let remainingStudents = [...studentNames];
         let studentIndex = 0;
 
-        const targetStartRef = lastUsedRef == null ? Number.NEGATIVE_INFINITY : lastUsedRef + refStep;
-        let currentRef = findNextAvailableRef(targetStartRef);
-
-        if (currentRef === null) {
-          outOfSpace = true;
-          break;
-        }
-
         while (remainingStudents.length > 0) {
-          const currentSlot = refMap.get(currentRef);
-          if (!currentSlot) {
-            throw new Error(`تعذر تحديد الصفحة ذات الرقم المرجعي ${currentRef}`);
+          // أخذ المرجع التالي المتاح للطلاب
+          const studentsRef = findNextAvailableRef();
+          if (studentsRef === null) {
+            console.log(`    ❌ OUT OF SPACE! No more references available.`);
+            console.log(`    ⚠️  Skipping remaining students for: ${group.className} - ${division.division} - ${subjectName}`);
+            console.log(`    📊 Used ${lastUsedRefIndex + 1} out of ${sortedRefs.length} references`);
+            break;
           }
 
-          const { sheet, row } = currentSlot;
+          const studentsSlot = refMap.get(studentsRef);
+          if (!studentsSlot) {
+            throw new Error(`تعذر تحديد الصفحة ذات الرقم المرجعي ${studentsRef}`);
+          }
+
+          // كتابة الطلاب
+          const { sheet, row } = studentsSlot;
+          console.log(`      ✏️  Writing students to reference ${studentsRef}, row ${row}`);
 
           const classLabel = `الصف : ${group.className ?? ""}`.trim();
           const divisionLabel = `الشعبة (${division.division ?? ""})`;
-          
-          // تحديد صف الرأس الفعلي بحسب النموذج
           const headerRow = row + 1;
 
-          // تحديد مواقع الطباعة الصحيحة حسب نوع النموذج
-          // الكتابة وفق مواضع النموذج الأصلي
-          setCellPreserveStyle(sheet, `D${headerRow}`, classLabel); // ضمن الدمج D:H
-          setCellPreserveStyle(sheet, `I${headerRow}`, divisionLabel); // خلية مفردة I
-          const subjectDisplay = `المادة الدراسية : ${subjectName}`;
-          setCellPreserveStyle(sheet, [headerRow, SUBJECT_VALUE_COLUMN], subjectDisplay); // ضمن الدمج O:T
-
-          const subjectRef = findNextAvailableRef(currentRef + 1);
-          if (subjectRef !== null) {
-            const subjectSlot = refMap.get(subjectRef);
-            if (subjectSlot) {
-              const subjectHeaderRow = subjectSlot.row + 1;
-              // تحديث مواقع الطباعة في الصفحة الثانية أيضاً
-              if (templateFilename === "alem_b.xlsx") {
-                // للصفوف الدنيا (نموذج alem_b.xlsx)
-                subjectSlot.sheet.getCell(`D${subjectHeaderRow}`).value = classLabel; // ضمن الدمج D:H
-                subjectSlot.sheet.getCell(`I${subjectHeaderRow}`).value = divisionLabel; // خلية مفردة I
-                subjectSlot.sheet.getCell(subjectHeaderRow, SUBJECT_VALUE_COLUMN).value = subjectDisplay; // ضمن الدمج O:T
-              } else {
-                // للصفوف العليا - نموذج alem_a.xlsx
-                subjectSlot.sheet.getCell(`D${subjectHeaderRow}`).value = classLabel;
-                subjectSlot.sheet.getCell(`I${subjectHeaderRow}`).value = divisionLabel;
-                subjectSlot.sheet.getCell(subjectHeaderRow, SUBJECT_VALUE_COLUMN).value = subjectDisplay;
-              }
-            }
-          }
+          setCellPreserveStyle(sheet, `D${headerRow}`, classLabel);
+          setCellPreserveStyle(sheet, `I${headerRow}`, divisionLabel);
 
           const studentsForPage = remainingStudents.splice(0, 25);
-          const studentStartRow = headerRow + 5; // بداية الأسماء بعد 5 صفوف من رأس الجدول
+          const studentStartRow = headerRow + 5;
 
           studentsForPage.forEach((name, index) => {
             setCellPreserveStyle(sheet, `A${studentStartRow + index}`, studentIndex + index + 1);
@@ -693,31 +758,81 @@ export async function generateMainGradebook(payload: MainGradebookPayload): Prom
           });
 
           studentIndex += studentsForPage.length;
-          lastUsedRef = currentRef;
+          console.log(`      ✅ Wrote ${studentsForPage.length} students at reference ${studentsRef}`);
 
-          if (remainingStudents.length > 0) {
-            const nextRef = findNextAvailableRef(currentRef + refStep);
-            if (nextRef === null) {
-              outOfSpace = true;
-              break;
-            }
-            currentRef = nextRef;
+          // أخذ المرجع التالي المتاح للمادة الدراسية
+          const subjectRef = findNextAvailableRef();
+          if (subjectRef === null) {
+            console.log(`    ❌ No reference available for subject!`);
+            break;
+          }
+
+          const subjectSlot = refMap.get(subjectRef);
+          if (subjectSlot) {
+            const subjectHeaderRow = subjectSlot.row + 1;
+            const subjectDisplay = `المادة الدراسية : ${subjectName}`;
+            setCellPreserveStyle(subjectSlot.sheet, [subjectHeaderRow, SUBJECT_VALUE_COLUMN], subjectDisplay);
+            console.log(`      ✅ Wrote subject "${subjectName}" at reference ${subjectRef}`);
           }
         }
       }
     }
   }
 
+  console.log("\n📊 Distribution Summary:");
+  console.log(`   ✅ Total references available: ${sortedRefs.length}`);
+  console.log(`   📝 References used: ${lastUsedRefIndex + 1}`);
+  console.log(`   📍 References remaining: ${sortedRefs.length - (lastUsedRefIndex + 1)}`);
+
   const id = nanoid(10);
   const filename = `دفتر_العلامات_الرئيسي_${id}.xlsx`;
   const exportPath = path.resolve(exportsDir, filename);
-  
+
+  // فحص البيانات قبل الحفظ للتحقق من وجود بيانات السابع والثامن
+  console.log("\n🔍 Verifying data before save...");
+  const sheet1 = workbook.worksheets[0];
+  if (sheet1) {
+    console.log(`  📄 Checking Sheet 1: ${sheet1.name}`);
+    // فحص عينة من الصفوف للبحث عن "السابع" أو "الثامن"
+    for (let r = 1; r <= Math.min(800, sheet1.rowCount); r++) {
+      const row = sheet1.getRow(r);
+      const cellD = row.getCell('D').value;
+      const cellText = cellD ? String(cellD) : '';
+      if (cellText.includes('السابع') || cellText.includes('الثامن')) {
+        console.log(`  ✅ Found grade 7/8 at row ${r}: "${cellText}"`);
+      }
+    }
+  }
+
   // حفظ جميع إعدادات القالب قبل الحفظ النهائي
+  console.log("\n⚙️  Applying template settings...");
   const templateWorkbook = new ExcelJS.Workbook();
   await templateWorkbook.xlsx.readFile(templatePath);
   preserveTemplateSettings(templateWorkbook, workbook);
-  
+  console.log("✅ Template settings applied");
+
+  // فحص البيانات بعد تطبيق إعدادات القالب للتأكد من عدم الكتابة فوقها
+  console.log("\n🔍 Re-verifying data after template settings...");
+  const sheet1After = workbook.worksheets[0];
+  if (sheet1After) {
+    let foundGrade7Or8 = false;
+    for (let r = 1; r <= Math.min(800, sheet1After.rowCount); r++) {
+      const row = sheet1After.getRow(r);
+      const cellD = row.getCell('D').value;
+      const cellText = cellD ? String(cellD) : '';
+      if (cellText.includes('السابع') || cellText.includes('الثامن')) {
+        console.log(`  ✅ Still found grade 7/8 at row ${r}: "${cellText}"`);
+        foundGrade7Or8 = true;
+      }
+    }
+    if (!foundGrade7Or8) {
+      console.log("  ⚠️  WARNING: Grade 7/8 data NOT found after template settings!");
+    }
+  }
+
+  console.log("\n💾 Saving workbook to file...");
   await workbook.xlsx.writeFile(exportPath);
+  console.log(`✅ File saved successfully: ${filename}`);
 
   return { id, filename, exportPath };
 }

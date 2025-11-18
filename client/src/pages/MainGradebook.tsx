@@ -61,7 +61,7 @@ export default function MainGradebook() {
     try {
       setIsGenerating(true);
       setDownloadInfo(null);
-      const modeLabel = templatePreference === "lower" ? "(روضة - رابع)" : templatePreference === "upper" ? "(خامس - ثاني ثانوي)" : "";
+      const modeLabel = templatePreference === "lower" ? "(روضة - ثالث)" : templatePreference === "upper" ? "(رابع - ثاني ثانوي)" : "";
       toast({
         title: "جاري المعالجة",
         description: modeLabel ? `سيتم إنشاء دفتر العلامات الرئيسي ${modeLabel}` : "سيتم إنشاء دفتر العلامات الرئيسي الآن",
@@ -226,7 +226,7 @@ export default function MainGradebook() {
                 data-testid="button-generate-main-gradebook-lower"
                 className="h-12 w-full justify-center gap-2 whitespace-nowrap"
               >
-                {isGenerating ? "جاري الإنشاء..." : "روضة - رابع"}
+                {isGenerating ? "جاري الإنشاء..." : "صفوف الأولى"}
               </Button>
               <Button
                 onClick={() => handleGenerate("upper")}
@@ -234,7 +234,7 @@ export default function MainGradebook() {
                 data-testid="button-generate-main-gradebook-upper"
                 className="h-12 w-full justify-center gap-2 whitespace-nowrap"
               >
-                {isGenerating ? "جاري الإنشاء..." : "خامس - ثاني ثانوي"}
+                {isGenerating ? "جاري الإنشاء..." : "رابع - ثاني ثانوي"}
               </Button>
               <Button
                 onClick={() => handleGenerate()}
@@ -242,7 +242,7 @@ export default function MainGradebook() {
                 variant="outline"
                 className="h-12 w-full justify-center gap-2 whitespace-nowrap"
               >
-               توزيع تلقائي
+               جميع المراحل
               </Button>
             </div>
 

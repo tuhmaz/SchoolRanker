@@ -12,7 +12,7 @@ import { Logo } from "@/components/Logo";
 import { Canonical } from "@/components/Canonical";
 import { MetaTags } from "./components/MetaTags";
 import Home from "@/pages/Home";
-const Settings = lazy(() => import("@/pages/Settings"));
+const CombinedSettings = lazy(() => import("@/pages/CombinedSettings"));
 const SideGradebook = lazy(() => import("@/pages/SideGradebook"));
 const Performance = lazy(() => import("@/pages/Performance"));
 const MainGradebook = lazy(() => import("@/pages/MainGradebook"));
@@ -35,7 +35,7 @@ function Router({ isNotFound }: { isNotFound: boolean }) {
   return (
     <Switch>
       <Route path="/" component={Home} />
-      <Route path="/settings" component={Settings} />
+      <Route path="/settings" component={CombinedSettings} />
       <Route path="/side-gradebook" component={SideGradebook} />
       <Route path="/performance" component={Performance} />
       <Route path="/main-gradebook" component={MainGradebook} />

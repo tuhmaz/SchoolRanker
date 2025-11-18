@@ -68,6 +68,28 @@ export function LandingContent() {
           نحافظ على جميع المزايا الأساسية كما هي، مع إضافة تحسينات جديدة تساعدك على إنجاز أعمالك بشكل أسرع وأكثر دقة.
         </p>
         <div className="grid gap-4 md:grid-cols-2">
+          <Card className="border-emerald-500/30 bg-emerald-500/5">
+            <CardHeader className="space-y-1">
+              <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+                <Settings className="h-5 w-5" />
+                <CardTitle className="text-lg">صفحة تجهيزات موحدة</CardTitle>
+              </div>
+              <CardDescription>
+                دمج صفحتي التجهيزات (الأساسية والحديثة) في صفحة واحدة بنظام تبويبات ملون لسهولة التنقل بين النموذج الأول (أخضر) والنموذج الثاني (أحمر).
+              </CardDescription>
+            </CardHeader>
+          </Card>
+          <Card className="border-primary/30 bg-background/70">
+            <CardHeader className="space-y-1">
+              <div className="flex items-center gap-2 text-primary">
+                <FileCheck className="h-5 w-5" />
+                <CardTitle className="text-lg">دعم دفتر العلامات للصف الرابع</CardTitle>
+              </div>
+              <CardDescription>
+                إضافة دعم كامل للصف الرابع في دفتر العلامات الرئيسي، مع تحديث أزرار التوليد لتشمل "صفوف الأولى" و"جميع المراحل".
+              </CardDescription>
+            </CardHeader>
+          </Card>
           <Card className="border-primary/30 bg-background/70">
             <CardHeader className="space-y-1">
               <div className="flex items-center gap-2 text-primary">
