@@ -278,20 +278,16 @@ const setCellPreserveStyle = (sheet: ExcelJS.Worksheet, addr: string | [number, 
 
 // دالة شاملة: نسخ جميع إعدادات القالب إلى الملف الناتج
 const preserveTemplateSettings = (templateWorkbook: ExcelJS.Workbook, outputWorkbook: ExcelJS.Workbook) => {
-  console.log("🔧 Preserving template settings...");
-  
   // نسخ إعدادات المصنف العامة
   if (templateWorkbook.properties) {
     outputWorkbook.properties = { ...templateWorkbook.properties };
   }
-  
+
   // نسخ إعدادات كل ورقة عمل باستخدام حلقة for
   for (let index = 0; index < templateWorkbook.worksheets.length; index++) {
     const templateSheet = templateWorkbook.worksheets[index];
     const outputSheet = outputWorkbook.worksheets[index];
     if (!outputSheet || !templateSheet) continue;
-    
-    console.log(`  📄 Processing sheet ${index + 1}: ${templateSheet.name}`);
     
     // 1. نسخ أبعاد الصفوف
     templateSheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
@@ -376,8 +372,6 @@ const preserveTemplateSettings = (templateWorkbook: ExcelJS.Workbook, outputWork
       outputSheet.state = templateSheet.state;
     }
   }
-  
-  console.log("✅ All template settings preserved successfully");
 };
 
 export interface MainGradebookResult {
@@ -401,13 +395,6 @@ export async function generateMainGradebook(payload: MainGradebookPayload): Prom
   const originalClasses = payload.classes;
   const originalStudents = payload.students;
 
-  console.log("🔍 Original classes before filtering:");
-  originalClasses.forEach((classRecord, idx) => {
-    const grade = extractGradeLevel(classRecord.className);
-    console.log(`  ${idx + 1}. ${classRecord.className} → Grade: ${grade ?? 'NOT DETECTED'}`);
-  });
-  console.log(`📋 Template preference: ${payload.templatePreference || 'auto'}`);
-
   const filterByPreference = (classes: ClassRecord[]): ClassRecord[] => {
     if (payload.templatePreference === "lower") {
       return classes.filter((group) => {
@@ -430,13 +417,6 @@ export async function generateMainGradebook(payload: MainGradebookPayload): Prom
 
   const classes = filterByPreference(originalClasses).slice();
 
-  console.log("📊 Filtered classes count:", classes.length);
-  console.log("✅ Classes after filtering:");
-  classes.forEach((classRecord, idx) => {
-    const grade = extractGradeLevel(classRecord.className);
-    console.log(`  ${idx + 1}. ${classRecord.className} → Grade: ${grade ?? '?'}`);
-  });
-
   const gradeComparator = (a: ClassRecord, b: ClassRecord) => {
     const gradeA = extractGradeLevel(a?.className) ?? Number.POSITIVE_INFINITY;
     const gradeB = extractGradeLevel(b?.className) ?? Number.POSITIVE_INFINITY;
@@ -448,9 +428,7 @@ export async function generateMainGradebook(payload: MainGradebookPayload): Prom
   // الصفوف الدنيا: روضة → ثالث
   // الصفوف العليا: رابع → ثاني ثانوي
   if (payload.templatePreference === "lower" || payload.templatePreference === "upper") {
-    console.log("🔄 Sorting classes by grade level...");
     classes.sort(gradeComparator);
-    console.log("✅ Classes sorted:", classes.map(c => `${c.className} (${extractGradeLevel(c.className)})`).join(" → "));
 
     // ترتيب الشعب والمواد داخل كل صف
     classes.forEach(classRecord => {
@@ -479,14 +457,6 @@ export async function generateMainGradebook(payload: MainGradebookPayload): Prom
     throw new Error("لا توجد صفوف مناسبة للخيار المحدد");
   }
 
-  // طباعة الترتيب النهائي للتأكد
-  console.log("📚 Final class order:");
-  classes.forEach((classRecord, idx) => {
-    const grade = extractGradeLevel(classRecord.className);
-    const divisions = classRecord.divisions?.map(d => d.division).join(", ") || "لا توجد شعب";
-    console.log(`  ${idx + 1}. ${classRecord.className} (Grade ${grade ?? '?'}) - الشعب: [${divisions}]`);
-  });
-
   const classNameLookup = new Map<string, string>();
   classes.forEach((group) => {
     const normalized = normalizeClassName(group?.className || "");
@@ -496,9 +466,6 @@ export async function generateMainGradebook(payload: MainGradebookPayload): Prom
   });
 
   const allowedNormalizedClassNames = new Set(classNameLookup.keys());
-
-  console.log("✅ Allowed class names:", Array.from(allowedNormalizedClassNames).slice(0, 5).join(", "),
-              allowedNormalizedClassNames.size > 5 ? `... (${allowedNormalizedClassNames.size} total)` : "");
 
   const students = originalStudents.filter((student) => {
     const studentClass = student.class || "";
@@ -525,8 +492,6 @@ export async function generateMainGradebook(payload: MainGradebookPayload): Prom
     }
     return allowedNormalizedClassNames.has(normalized);
   });
-
-  console.log(`📝 Total students: ${students.length} out of ${originalStudents.length}`);
 
   if (students.length === 0) {
     throw new Error("لا توجد بيانات طلبة مناسبة للخيار المحدد");
@@ -585,40 +550,29 @@ export async function generateMainGradebook(payload: MainGradebookPayload): Prom
   const allRefsArray: Array<{ refNumber: number; sheet: ExcelJS.Worksheet; row: number }> = [];
   const sheetsToSearch = [workbook.worksheets[0], workbook.worksheets[1]];
 
-  console.log("🔍 Searching for reference numbers in template...");
-  console.log(`📑 Sheets to use: ${sheetsToSearch.length} sheets`);
-
-  sheetsToSearch.forEach((sheet, index) => {
+  sheetsToSearch.forEach((sheet) => {
     if (!sheet) return;
     // زيادة الحد الأقصى للبحث ليشمل جميع صفوف القالب
     const maxRows = Math.max(sheet.rowCount, sheet.actualRowCount ?? 0, 3200);
-    let foundInSheet = 0;
 
     for (let row = 1; row <= maxRows; row++) {
       for (const column of ["J", "K"]) {
         const numericValue = getNumericCellValue(sheet.getCell(`${column}${row}`));
         if (numericValue != null) {
           allRefsArray.push({ refNumber: numericValue, sheet, row });
-          foundInSheet++;
         }
       }
     }
-
-    console.log(`  ✅ Sheet ${index + 1}: Found ${foundInSheet} references (${maxRows} rows scanned)`);
   });
 
   if (allRefsArray.length === 0) {
-    console.log("[fallback] Legacy reference columns empty. Scanning header labels...");
-    sheetsToSearch.forEach((sheet, index) => {
-      const added = collectHeaderReferenceNumbers(sheet, allRefsArray);
-      console.log(`  [fallback] Header scan sheet ${index + 1}: Found ${added} references via labels`);
+    sheetsToSearch.forEach((sheet) => {
+      collectHeaderReferenceNumbers(sheet, allRefsArray);
     });
   }
   if (allRefsArray.length === 0) {
     throw new Error("تعذر العثور على أرقام المراجع داخل القالب");
   }
-
-  console.log(`📊 Total references found (including duplicates): ${allRefsArray.length}`);
 
   // إزالة المكررات: نحتفظ بأول ظهور لكل رقم مرجع فريد
   const uniqueRefs = new Map<number, typeof allRefsArray[0]>();
@@ -627,8 +581,6 @@ export async function generateMainGradebook(payload: MainGradebookPayload): Prom
       uniqueRefs.set(ref.refNumber, ref);
     }
   });
-
-  console.log(`🔧 Filtered to unique references: ${allRefsArray.length} → ${uniqueRefs.size}`);
 
   // ترتيب حسب رقم المرجع، وعند التساوي حسب الشيت ثم الصف
   const sortedUniqueRefs = Array.from(uniqueRefs.values()).sort((a, b) => {
@@ -650,33 +602,6 @@ export async function generateMainGradebook(payload: MainGradebookPayload): Prom
 
   const sortedRefs = Array.from(refMap.keys()).sort((a, b) => a - b);
 
-  console.log("🔢 Sorted reference numbers:", sortedRefs.slice(0, 10).join(", "), sortedRefs.length > 10 ? "..." : "");
-  if (sortedRefs.length <= 50) {
-    console.log("📋 All reference numbers:", sortedRefs.join(", "));
-  }
-  console.log("📏 Total references available:", sortedRefs.length);
-  console.log("⚙️  Using sequential reference allocation (simple index increment)");
-
-  // طباعة خريطة المراجع لفهم التوزيع
-  console.log("\n🗺️  Reference Distribution:");
-  console.log(`  First 10 refs: ${sortedRefs.slice(0, 10).join(", ")}`);
-  console.log(`  Last 10 refs: ${sortedRefs.slice(-10).join(", ")}`);
-
-  // إحصاء المراجع حسب الشيت
-  const refsBySheet = new Map<string, number>();
-  sortedRefs.forEach(ref => {
-    const slot = refMap.get(ref);
-    if (slot) {
-      const sheetName = slot.sheet.name;
-      refsBySheet.set(sheetName, (refsBySheet.get(sheetName) || 0) + 1);
-    }
-  });
-
-  console.log("\n📊 References per sheet:");
-  refsBySheet.forEach((count, sheetName) => {
-    console.log(`  ${sheetName}: ${count} references`);
-  });
-
   let lastUsedRefIndex = -1;
 
   const findNextAvailableRef = (): number | null => {
@@ -685,40 +610,29 @@ export async function generateMainGradebook(payload: MainGradebookPayload): Prom
       lastUsedRefIndex++;
       return sortedRefs[lastUsedRefIndex];
     } else {
-      // عند نفاد الجداول، نتوقف عن المعالجة
-      console.log(`❌ نفدت جميع الجداول المتاحة. تم استخدام ${lastUsedRefIndex + 1} من أصل ${sortedRefs.length} جدول.`);
       return null;
     }
   };
 
-  console.log("📝 Starting to distribute students to pages...");
-  console.log(`📋 Processing order: ${classes.map(c => c.className).join(" → ")}`);
-
   for (const group of classes) {
-    console.log(`\n🏫 Processing class: ${group.className} (Grade ${extractGradeLevel(group.className)})`);
-
     for (const division of group.divisions || []) {
       const subjects = (division.subjects || [])
         .map((subject) => subject?.name?.trim())
         .filter((name): name is string => !!name && name.length > 0);
 
       if (subjects.length === 0) {
-        console.log(`  ⚠️  No subjects for division ${division.division} - skipping`);
         continue;
       }
 
       const studentKey = `${group.className || ""}|||${division.division || ""}`;
       const classStudents = studentsByClassDivision.get(studentKey) ?? [];
       if (classStudents.length === 0) {
-        console.log(`  ⚠️  No students found for ${group.className} - ${division.division}`);
         continue;
       }
 
       const studentNames = classStudents.map((student) => student.name).filter((name): name is string => !!name);
-      console.log(`  📌 Division ${division.division}: ${studentNames.length} students, ${subjects.length} subjects`);
 
       for (const subjectName of subjects) {
-        console.log(`    📖 Subject: ${subjectName}`);
 
         let remainingStudents = [...studentNames];
         let studentIndex = 0;
@@ -727,9 +641,6 @@ export async function generateMainGradebook(payload: MainGradebookPayload): Prom
           // أخذ المرجع التالي المتاح للطلاب
           const studentsRef = findNextAvailableRef();
           if (studentsRef === null) {
-            console.log(`    ❌ OUT OF SPACE! No more references available.`);
-            console.log(`    ⚠️  Skipping remaining students for: ${group.className} - ${division.division} - ${subjectName}`);
-            console.log(`    📊 Used ${lastUsedRefIndex + 1} out of ${sortedRefs.length} references`);
             break;
           }
 
@@ -740,7 +651,6 @@ export async function generateMainGradebook(payload: MainGradebookPayload): Prom
 
           // كتابة الطلاب
           const { sheet, row } = studentsSlot;
-          console.log(`      ✏️  Writing students to reference ${studentsRef}, row ${row}`);
 
           const classLabel = `الصف : ${group.className ?? ""}`.trim();
           const divisionLabel = `الشعبة (${division.division ?? ""})`;
@@ -758,12 +668,10 @@ export async function generateMainGradebook(payload: MainGradebookPayload): Prom
           });
 
           studentIndex += studentsForPage.length;
-          console.log(`      ✅ Wrote ${studentsForPage.length} students at reference ${studentsRef}`);
 
           // أخذ المرجع التالي المتاح للمادة الدراسية
           const subjectRef = findNextAvailableRef();
           if (subjectRef === null) {
-            console.log(`    ❌ No reference available for subject!`);
             break;
           }
 
@@ -772,67 +680,22 @@ export async function generateMainGradebook(payload: MainGradebookPayload): Prom
             const subjectHeaderRow = subjectSlot.row + 1;
             const subjectDisplay = `المادة الدراسية : ${subjectName}`;
             setCellPreserveStyle(subjectSlot.sheet, [subjectHeaderRow, SUBJECT_VALUE_COLUMN], subjectDisplay);
-            console.log(`      ✅ Wrote subject "${subjectName}" at reference ${subjectRef}`);
           }
         }
       }
     }
   }
 
-  console.log("\n📊 Distribution Summary:");
-  console.log(`   ✅ Total references available: ${sortedRefs.length}`);
-  console.log(`   📝 References used: ${lastUsedRefIndex + 1}`);
-  console.log(`   📍 References remaining: ${sortedRefs.length - (lastUsedRefIndex + 1)}`);
-
   const id = nanoid(10);
   const filename = `دفتر_العلامات_الرئيسي_${id}.xlsx`;
   const exportPath = path.resolve(exportsDir, filename);
 
-  // فحص البيانات قبل الحفظ للتحقق من وجود بيانات السابع والثامن
-  console.log("\n🔍 Verifying data before save...");
-  const sheet1 = workbook.worksheets[0];
-  if (sheet1) {
-    console.log(`  📄 Checking Sheet 1: ${sheet1.name}`);
-    // فحص عينة من الصفوف للبحث عن "السابع" أو "الثامن"
-    for (let r = 1; r <= Math.min(800, sheet1.rowCount); r++) {
-      const row = sheet1.getRow(r);
-      const cellD = row.getCell('D').value;
-      const cellText = cellD ? String(cellD) : '';
-      if (cellText.includes('السابع') || cellText.includes('الثامن')) {
-        console.log(`  ✅ Found grade 7/8 at row ${r}: "${cellText}"`);
-      }
-    }
-  }
-
   // حفظ جميع إعدادات القالب قبل الحفظ النهائي
-  console.log("\n⚙️  Applying template settings...");
   const templateWorkbook = new ExcelJS.Workbook();
   await templateWorkbook.xlsx.readFile(templatePath);
   preserveTemplateSettings(templateWorkbook, workbook);
-  console.log("✅ Template settings applied");
 
-  // فحص البيانات بعد تطبيق إعدادات القالب للتأكد من عدم الكتابة فوقها
-  console.log("\n🔍 Re-verifying data after template settings...");
-  const sheet1After = workbook.worksheets[0];
-  if (sheet1After) {
-    let foundGrade7Or8 = false;
-    for (let r = 1; r <= Math.min(800, sheet1After.rowCount); r++) {
-      const row = sheet1After.getRow(r);
-      const cellD = row.getCell('D').value;
-      const cellText = cellD ? String(cellD) : '';
-      if (cellText.includes('السابع') || cellText.includes('الثامن')) {
-        console.log(`  ✅ Still found grade 7/8 at row ${r}: "${cellText}"`);
-        foundGrade7Or8 = true;
-      }
-    }
-    if (!foundGrade7Or8) {
-      console.log("  ⚠️  WARNING: Grade 7/8 data NOT found after template settings!");
-    }
-  }
-
-  console.log("\n💾 Saving workbook to file...");
   await workbook.xlsx.writeFile(exportPath);
-  console.log(`✅ File saved successfully: ${filename}`);
 
   return { id, filename, exportPath };
 }
