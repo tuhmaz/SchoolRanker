@@ -38,6 +38,20 @@ export function LandingContent() {
         <p className="text-base text-muted-foreground max-w-2xl mx-auto">
           خدمتك هو نظام إدارة سجلات الطلبة ومنصة أجيال متكاملة، يجمع بين الكفاءة والموثوقية لدعم المدارس. 
         </p>
+        <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-2 text-sm">
+          <span className="rounded-full border border-emerald-300/70 bg-emerald-100/70 px-3 py-1 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-900/40 dark:text-emerald-200">
+            صفحة المعلم أجيال الجديدة
+          </span>
+          <span className="rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-primary">
+            تجهيزات موحدة بنظام تبويبات ملونة
+          </span>
+          <span className="rounded-full border border-sky-300/50 bg-sky-100/60 px-3 py-1 text-sky-800 dark:border-sky-500/40 dark:bg-sky-900/40 dark:text-sky-200">
+            تحسينات توليد الدفاتر والشهادات
+          </span>
+          <span className="rounded-full border border-amber-300/60 bg-amber-100/70 px-3 py-1 text-amber-800 dark:border-amber-500/40 dark:bg-amber-900/30 dark:text-amber-200">
+            دروس فيديو محدثة لدعم المعلمين
+          </span>
+        </div>
         <div className="flex flex-wrap gap-4 justify-center mt-6">
           <Button
             size="lg"
@@ -68,6 +82,17 @@ export function LandingContent() {
           نحافظ على جميع المزايا الأساسية كما هي، مع إضافة تحسينات جديدة تساعدك على إنجاز أعمالك بشكل أسرع وأكثر دقة.
         </p>
         <div className="grid gap-4 md:grid-cols-2">
+          <Card className="border-emerald-500/30 bg-emerald-500/5">
+            <CardHeader className="space-y-1">
+              <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+                <Users className="h-5 w-5" />
+                <CardTitle className="text-lg">صفحة المعلم أجيال</CardTitle>
+              </div>
+              <CardDescription>
+                صفحة مخصصة لقراءة كشف المعلم (StudentsNameReport) مع فلترة تحذيرات ذكية وتخزين تلقائي للصفوف والشعب لخدمة دفاتر العلامات.
+              </CardDescription>
+            </CardHeader>
+          </Card>
           <Card className="border-emerald-500/30 bg-emerald-500/5">
             <CardHeader className="space-y-1">
               <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">

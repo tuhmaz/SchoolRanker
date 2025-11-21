@@ -466,7 +466,10 @@ export async function parseMinistryFile(file: File): Promise<ParsedData> {
               headerRowIndex = i;
               nameColumnIndex = nameIdx;
               divisionColumnIndex = row.findIndex((cell: any) => cell && String(cell).trim() === 'الشعبة');
-              nationalIdColumnIndex = row.findIndex((cell: any) => cell && /(رقم\s*(الإثبات|الهوية))/.test(String(cell)));
+              nationalIdColumnIndex = row.findIndex(
+                (cell: any) =>
+                  cell && /(رقم\s*(الإثبات|الهوية)|الرقم\s*الوطني)/.test(String(cell)),
+              );
               birthDateColumnIndex = row.findIndex((cell: any) => cell && /تاريخ\s*الميلاد/.test(String(cell)));
               statusColumnIndex = row.findIndex((cell: any) => cell && /حالة\s*القيد/.test(String(cell)));
               if (nationalIdColumnIndex !== -1) {

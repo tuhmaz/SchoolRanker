@@ -10,9 +10,17 @@ type MetaConfig = {
   description: string;
   robots?: string;
   keywords?: string[];
+  image?: string;
+  type?: string;
+  canonical?: string;
 };
 
 const BASE_URL = "https://khadmatak.com";
+const DEFAULT_OG_IMAGE = `${BASE_URL}/logo.svg`;
+const DEFAULT_OG_TYPE = "website";
+const DEFAULT_TWITTER_CARD = "summary_large_image";
+const DEFAULT_SITE_NAME = "خدمتك";
+const DEFAULT_LOCALE = "ar_AR";
 const FALLBACK_KEYWORDS: string[] = [
   "خدمتك",
   "نظام خدمتك",
@@ -50,6 +58,8 @@ function getMetaForPath(pathname: string, isNotFound?: boolean): MetaConfig {
         "سجل الحضور",
         "برنامج المدارس",
         "تقارير الأداء",
+        "صفحة المعلم أجيال",
+        "StudentsNameReport",
       ],
     },
     "/main-gradebook": {
@@ -99,6 +109,8 @@ function getMetaForPath(pathname: string, isNotFound?: boolean): MetaConfig {
         "متابعة حضور الطلبة",
         "دفتر الحضور",
         "تتبع الغياب",
+        "تصدير الحضور",
+        "كشف حضور شهري",
       ],
     },
     "/lesson-attendance": {
@@ -158,6 +170,7 @@ function getMetaForPath(pathname: string, isNotFound?: boolean): MetaConfig {
         "كيفية الاستخدام",
         "رفع ملفات أجيال",
         "خطوات التجهيز",
+        "صفحة المعلم أجيال",
       ],
     },
     "/tutorials": {
@@ -207,6 +220,20 @@ function getMetaForPath(pathname: string, isNotFound?: boolean): MetaConfig {
         "Excel شهادات",
       ],
     },
+    "/teacher-agial": {
+      title: "صفحة المعلم أجيال - خدمتك",
+      description:
+        "ارفع ملف StudentsNameReport لتحليل الصفوف والشعب، حفظ التجهيزات، وإنشاء دفاتر العلامات المتوافقة مع منصة أجيال.",
+      robots: "index, follow",
+      keywords: [
+        "صفحة المعلم أجيال",
+        "StudentsNameReport",
+        "كشف المعلم",
+        "تحليل كشف أجيال",
+        "فلترة التحذيرات",
+        "رفع ملف المعلم",
+      ],
+    },
   };
 
   return (
@@ -226,6 +253,9 @@ export function MetaTags({ isNotFound }: MetaTagsProps) {
   const absoluteUrl = `${BASE_URL}${normalizedPath === "/" ? "" : normalizedPath}`;
   const meta = getMetaForPath(normalizedPath, isNotFound);
   const keywords = meta.keywords && meta.keywords.length > 0 ? meta.keywords : FALLBACK_KEYWORDS;
+  const ogImage = meta.image || DEFAULT_OG_IMAGE;
+  const ogType = meta.type || DEFAULT_OG_TYPE;
+  const canonicalHref = meta.canonical || absoluteUrl;
 
   useEffect(() => {
     // Title
@@ -285,6 +315,38 @@ export function MetaTags({ isNotFound }: MetaTagsProps) {
     }
     ogUrl.setAttribute("content", absoluteUrl);
 
+    let ogImageMeta = document.querySelector<HTMLMetaElement>('meta[property="og:image"]');
+    if (!ogImageMeta) {
+      ogImageMeta = document.createElement("meta");
+      ogImageMeta.setAttribute("property", "og:image");
+      document.head.appendChild(ogImageMeta);
+    }
+    ogImageMeta.setAttribute("content", ogImage);
+
+    let ogTypeMeta = document.querySelector<HTMLMetaElement>('meta[property="og:type"]');
+    if (!ogTypeMeta) {
+      ogTypeMeta = document.createElement("meta");
+      ogTypeMeta.setAttribute("property", "og:type");
+      document.head.appendChild(ogTypeMeta);
+    }
+    ogTypeMeta.setAttribute("content", ogType);
+
+    let ogSiteName = document.querySelector<HTMLMetaElement>('meta[property="og:site_name"]');
+    if (!ogSiteName) {
+      ogSiteName = document.createElement("meta");
+      ogSiteName.setAttribute("property", "og:site_name");
+      document.head.appendChild(ogSiteName);
+    }
+    ogSiteName.setAttribute("content", DEFAULT_SITE_NAME);
+
+    let ogLocale = document.querySelector<HTMLMetaElement>('meta[property="og:locale"]');
+    if (!ogLocale) {
+      ogLocale = document.createElement("meta");
+      ogLocale.setAttribute("property", "og:locale");
+      document.head.appendChild(ogLocale);
+    }
+    ogLocale.setAttribute("content", DEFAULT_LOCALE);
+
     // Twitter
     let twTitle = document.querySelector<HTMLMetaElement>('meta[name="twitter:title"]');
     if (!twTitle) {
@@ -310,6 +372,22 @@ export function MetaTags({ isNotFound }: MetaTagsProps) {
     }
     twUrl.setAttribute("content", absoluteUrl);
 
+    let twCard = document.querySelector<HTMLMetaElement>('meta[name="twitter:card"]');
+    if (!twCard) {
+      twCard = document.createElement("meta");
+      twCard.setAttribute("name", "twitter:card");
+      document.head.appendChild(twCard);
+    }
+    twCard.setAttribute("content", DEFAULT_TWITTER_CARD);
+
+    let twImage = document.querySelector<HTMLMetaElement>('meta[name="twitter:image"]');
+    if (!twImage) {
+      twImage = document.createElement("meta");
+      twImage.setAttribute("name", "twitter:image");
+      document.head.appendChild(twImage);
+    }
+    twImage.setAttribute("content", ogImage);
+
     // Canonical
     let canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
     if (!canonical) {
@@ -317,8 +395,8 @@ export function MetaTags({ isNotFound }: MetaTagsProps) {
       canonical.setAttribute("rel", "canonical");
       document.head.appendChild(canonical);
     }
-    canonical.setAttribute("href", absoluteUrl);
-  }, [absoluteUrl, keywords, meta.description, meta.robots, meta.title]);
+    canonical.setAttribute("href", canonicalHref);
+  }, [absoluteUrl, canonicalHref, keywords, meta.description, meta.robots, meta.title, ogImage, ogType]);
 
   return null;
 }

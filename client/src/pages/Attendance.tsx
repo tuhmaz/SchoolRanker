@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { AttendanceStatus } from "@/types/attendance";
 import { AdSlot } from "@/components/ads/AdSlot";
 import { AD_SLOTS } from "@/config/ads";
+import { cn } from "@/lib/utils";
 
 interface StoredStudent {
   id: string;
@@ -190,6 +191,8 @@ export default function Attendance() {
     });
   }, [toast]);
 
+  const activeDivision = useMemo(() => availableDivisions.find((division) => division.id === selectedDivisionId) ?? null, [availableDivisions, selectedDivisionId]);
+
   const handleGenerate = async () => {
     if (!settings || !selectedDivisionId) {
       toast({
@@ -349,53 +352,72 @@ export default function Attendance() {
 
   return (
     <div className="space-y-6" dir="rtl">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">دفتر حضور وغياب</h1>
-          <p className="text-muted-foreground mt-2">تتبع حضور الطلبة بشكل يومي مع تقارير شهرية</p>
-        </div>
-        <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:items-end">
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end sm:gap-2">
-            <Button
-              className="w-full sm:w-auto"
-              variant="secondary"
-              onClick={handleGenerate}
-              disabled={isGenerating}
-              data-testid="button-generate-attendance"
-            >
-              {isGenerating ? (
-                <Loader2 className="w-4 h-4 ml-2 animate-spin" />
-              ) : (
-                <Download className="w-4 h-4 ml-2" />
-              )}
-              إنشاء الملف
-            </Button>
-            <Button
-              className="w-full sm:w-auto"
-              variant="outline"
-              onClick={handleDownload}
-              disabled={!downloadInfo || isDownloading}
-              data-testid="button-download-attendance"
-            >
-              {isDownloading ? (
-                <Loader2 className="w-4 h-4 ml-2 animate-spin" />
-              ) : (
-                <Download className="w-4 h-4 ml-2" />
-              )}
-              تحميل
-            </Button>
-            <Button
-              className="w-full sm:w-auto"
-              variant="outline"
-              onClick={handlePrint}
-              data-testid="button-print-attendance"
-            >
-              <Printer className="w-4 h-4 ml-2" />
-              طباعة
-            </Button>
+      <section className="rounded-3xl border border-emerald-200/60 bg-gradient-to-l from-emerald-100/50 via-background to-background px-5 py-6 shadow-sm dark:border-emerald-500/30 dark:from-emerald-950/40 dark:via-background/40 sm:px-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/40 bg-emerald-100/60 px-3 py-1 text-xs font-medium text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-900/40 dark:text-emerald-200">
+              تتبع الحضور بسهولة
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-foreground">دفتر حضور وغياب</h1>
+              <p className="mt-1 text-sm text-muted-foreground sm:text-base">تعرّف على حالة الطلبة شهرياً وحدد الفترة التي تعمل عليها الآن.</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm">
+              <span className="rounded-full border border-emerald-400/50 bg-emerald-50/70 px-3 py-1 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-900/30 dark:text-emerald-200">
+                الشعبة الحالية: {activeDivision?.label ?? "غير محددة"}
+              </span>
+              <span className="rounded-full border border-sky-400/50 bg-sky-50/70 px-3 py-1 text-sky-800 dark:border-sky-500/40 dark:bg-sky-900/30 dark:text-sky-200">
+                الأشهر المختارة: {exportMonthsSummary}
+              </span>
+              {termName ? (
+                <span className="rounded-full border border-amber-400/60 bg-amber-50/70 px-3 py-1 text-amber-800 dark:border-amber-500/40 dark:bg-amber-900/30 dark:text-amber-200">
+                  الفترة: {termName}
+                </span>
+              ) : null}
+            </div>
+          </div>
+          <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:items-end">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end sm:gap-2">
+              <Button
+                className="w-full bg-emerald-600 text-white transition-colors hover:bg-emerald-700 focus-visible:ring-emerald-600/60 sm:w-auto"
+                onClick={handleGenerate}
+                disabled={isGenerating}
+                data-testid="button-generate-attendance"
+              >
+                {isGenerating ? (
+                  <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="ml-2 h-4 w-4" />
+                )}
+                إنشاء الملف
+              </Button>
+              <Button
+                className="w-full border-emerald-500/40 text-emerald-700 transition-colors hover:border-emerald-600 hover:bg-emerald-50 hover:text-emerald-800 dark:border-emerald-500/30 dark:text-emerald-200 dark:hover:bg-emerald-900/40 sm:w-auto"
+                variant="outline"
+                onClick={handleDownload}
+                disabled={!downloadInfo || isDownloading}
+                data-testid="button-download-attendance"
+              >
+                {isDownloading ? (
+                  <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="ml-2 h-4 w-4" />
+                )}
+                تحميل
+              </Button>
+              <Button
+                className="w-full border-amber-400/60 text-amber-700 hover:border-amber-500 hover:bg-amber-50 hover:text-amber-800 dark:border-amber-500/40 dark:text-amber-200 dark:hover:bg-amber-900/40 sm:w-auto"
+                variant="outline"
+                onClick={handlePrint}
+                data-testid="button-print-attendance"
+              >
+                <Printer className="ml-2 h-4 w-4" />
+                طباعة
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
+      </section>
 
       <Card>
         <CardHeader>
@@ -450,7 +472,9 @@ export default function Attendance() {
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="select-division">الصف والشعبة</Label>
+            <Label htmlFor="select-division" className="text-sm font-semibold text-emerald-700 dark:text-emerald-200">
+              الصف والشعبة
+            </Label>
             <Select
               value={selectedDivisionId}
               onValueChange={(value) => {
@@ -458,7 +482,11 @@ export default function Attendance() {
                 setAttendanceByDate({});
               }}
             >
-              <SelectTrigger id="select-division" data-testid="select-division">
+              <SelectTrigger
+                id="select-division"
+                data-testid="select-division"
+                className="border-emerald-200/60 bg-emerald-50/70 text-emerald-900 shadow-sm transition-colors hover:border-emerald-300 focus-visible:ring-emerald-500/40 dark:border-emerald-500/30 dark:bg-emerald-950/40 dark:text-emerald-100"
+              >
                 <SelectValue placeholder="اختر الشعبة" />
               </SelectTrigger>
               <SelectContent>
@@ -472,7 +500,9 @@ export default function Attendance() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="select-month">الشهر</Label>
+            <Label htmlFor="select-month" className="text-sm font-semibold text-emerald-700 dark:text-emerald-200">
+              الشهر
+            </Label>
             <Select
               value={String(selectedMonth)}
               onValueChange={(value) => {
@@ -483,7 +513,11 @@ export default function Attendance() {
                 }
               }}
             >
-              <SelectTrigger id="select-month" data-testid="select-month">
+              <SelectTrigger
+                id="select-month"
+                data-testid="select-month"
+                className="border-sky-200/60 bg-sky-50/70 text-sky-900 shadow-sm transition-colors hover:border-sky-300 focus-visible:ring-sky-500/40 dark:border-sky-500/30 dark:bg-sky-950/40 dark:text-sky-100"
+              >
                 <SelectValue placeholder="اختر الشهر" />
               </SelectTrigger>
               <SelectContent>
@@ -497,15 +531,15 @@ export default function Attendance() {
           </div>
 
           <div className="space-y-2">
-            <p className="text-sm font-medium text-foreground">عدد الطلبة</p>
-            <div className="rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-sm" aria-live="polite">
+            <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-200">عدد الطلبة</p>
+            <div className="rounded-md border border-emerald-200/60 bg-emerald-50/60 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-900/30 dark:text-emerald-100" aria-live="polite">
               {selectedStudents.length}
             </div>
           </div>
 
           <div className="space-y-2">
-            <p className="text-sm font-medium text-foreground">ملخص الأشهر المختارة</p>
-            <div className="rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-sm" aria-live="polite">
+            <p className="text-sm font-semibold text-sky-700 dark:text-sky-200">ملخص الأشهر المختارة</p>
+            <div className="rounded-md border border-sky-200/60 bg-sky-50/60 px-3 py-2 text-sm text-sky-900 dark:border-sky-500/30 dark:bg-sky-900/30 dark:text-sky-100" aria-live="polite">
               {exportMonthsSummary}
             </div>
           </div>
@@ -517,6 +551,7 @@ export default function Attendance() {
               value={termName}
               onChange={(event) => setTermName(event.target.value)}
               placeholder="مثال: الفصل الأول"
+              className="border-emerald-200/60 focus-visible:ring-emerald-500/40 dark:border-emerald-500/30"
             />
           </div>
 
@@ -530,9 +565,14 @@ export default function Attendance() {
                 return (
                   <Button
                     key={month.value}
-                    variant={isActive ? "secondary" : "outline"}
+                    variant="outline"
                     size="sm"
                     onClick={() => toggleMonthSelection(month.value)}
+                    className={cn(
+                      "border-dashed border-slate-300/60 text-muted-foreground transition-colors hover:border-emerald-400/70 hover:bg-emerald-50/50 hover:text-emerald-800 dark:border-slate-600/60 dark:hover:bg-emerald-900/30",
+                      isActive &&
+                        "border-emerald-500 bg-emerald-100/80 text-emerald-900 shadow-sm dark:border-emerald-500/60 dark:bg-emerald-900/50 dark:text-emerald-100",
+                    )}
                   >
                     {month.label}
                   </Button>
@@ -543,17 +583,32 @@ export default function Attendance() {
               {termPresets.map((preset) => (
                 <Button
                   key={preset.id}
-                  variant={isPresetActive(preset.months) ? "secondary" : "ghost"}
+                  variant="ghost"
                   size="sm"
                   onClick={() => handlePresetSelection(preset.months, preset.label)}
+                  className={cn(
+                    "border border-transparent text-muted-foreground hover:border-emerald-400 hover:bg-emerald-50/70 hover:text-emerald-800 dark:hover:bg-emerald-900/30",
+                    isPresetActive(preset.months) &&
+                      "border-emerald-500/60 bg-emerald-100/80 text-emerald-900 shadow-sm dark:border-emerald-500/40 dark:bg-emerald-900/50 dark:text-emerald-100",
+                  )}
                 >
                   {preset.label}
                 </Button>
               ))}
-              <Button variant="ghost" size="sm" onClick={handleSelectAllMonths}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSelectAllMonths}
+                className="text-sky-700 hover:bg-sky-50/60 hover:text-sky-900 dark:text-sky-200 dark:hover:bg-sky-900/30"
+              >
                 تحديد كل الأشهر
               </Button>
-              <Button variant="ghost" size="sm" onClick={handleClearMonths}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleClearMonths}
+                className="text-rose-700 hover:bg-rose-50/60 hover:text-rose-900 dark:text-rose-200 dark:hover:bg-rose-900/30"
+              >
                 مسح التحديد
               </Button>
             </div>
@@ -573,10 +628,13 @@ export default function Attendance() {
             <span className="text-sm font-medium text-foreground">العرض اليومي</span>
             <Button
               id="toggle-daily"
-              variant={showDailyPanel ? "secondary" : "outline"}
+              variant="outline"
               size="sm"
               onClick={() => setShowDailyPanel((prev) => !prev)}
-              className="w-full sm:w-auto"
+              className={cn(
+                "w-full border-emerald-400/50 text-emerald-700 transition-colors hover:border-emerald-500 hover:bg-emerald-50 hover:text-emerald-800 dark:border-emerald-500/40 dark:text-emerald-200 dark:hover:bg-emerald-900/40 sm:w-auto",
+                showDailyPanel && "border-emerald-600 bg-emerald-100/80 text-emerald-900 dark:border-emerald-500/60 dark:bg-emerald-900/40 dark:text-emerald-100",
+              )}
             >
               {showDailyPanel ? "إخفاء اللوحة اليومية" : "عرض اللوحة اليومية"}
             </Button>

@@ -3,6 +3,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { FileSpreadsheet, Download, CalendarCheck, ClipboardList, Building2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { LoadingOverlay } from "@/components/LoadingOverlay";
+import { AdSlot } from "@/components/ads/AdSlot";
+import { AD_SLOTS } from "@/config/ads";
 
 interface StoredSettings {
   teacherName?: string;
@@ -17,12 +20,169 @@ interface StoredSettings {
   students?: any[];
 }
 
+const ARABIC_DIGIT_MAP: Record<string, string> = {
+  "\u0660": "0",
+  "\u0661": "1",
+  "\u0662": "2",
+  "\u0663": "3",
+  "\u0664": "4",
+  "\u0665": "5",
+  "\u0666": "6",
+  "\u0667": "7",
+  "\u0668": "8",
+  "\u0669": "9",
+};
+
+const normalizeArabicDigits = (value: string): string => value.replace(/[\u0660-\u0669]/g, (digit) => ARABIC_DIGIT_MAP[digit] ?? digit);
+
+const normalizeClassName = (className: string | undefined): string => {
+  if (!className) return "";
+  return className
+    .toLowerCase()
+    .replace(/[\u0660-\u0669]/g, (digit) => ARABIC_DIGIT_MAP[digit] ?? digit)
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ة/g, "ه")
+    .replace(/[^a-z0-9\u0600-\u06FF\s]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
+const GRADE_KEYWORDS: Array<{ grade: number; keywords: string[] }> = [
+  { grade: 12, keywords: ["ثاني ثانوي", "الثاني ثانوي", "ثاني عشر", "الثاني عشر", "الصف الثاني عشر", "صف ثاني ثانوي", "12"] },
+  { grade: 11, keywords: ["اول ثانوي", "الاول ثانوي", "حادي عشر", "الحادي عشر", "الصف الحادي عشر", "صف اول ثانوي", "11"] },
+  { grade: 10, keywords: ["العاشر", "عاشر", "الصف العاشر", "صف عاشر", "10"] },
+  { grade: 9, keywords: ["التاسع", "تاسع", "الصف التاسع", "صف تاسع", "9"] },
+  { grade: 8, keywords: ["الثامن", "ثامن", "الصف الثامن", "صف ثامن", "8"] },
+  { grade: 7, keywords: ["السابع", "سابع", "الصف السابع", "صف سابع", "7"] },
+  { grade: 6, keywords: ["السادس", "سادس", "الصف السادس", "صف سادس", "6"] },
+  { grade: 5, keywords: ["الخامس", "خامس", "الصف الخامس", "صف خامس", "5"] },
+  { grade: 4, keywords: ["الرابع", "رابع", "الصف الرابع", "صف رابع", "4"] },
+  { grade: 3, keywords: ["الثالث", "ثالث", "الصف الثالث", "صف ثالث", "3"] },
+  { grade: 2, keywords: ["الثاني", "ثاني", "الصف الثاني", "صف ثاني", "2"] },
+  { grade: 1, keywords: ["الاول", "اول", "الصف الاول", "صف اول", "1"] },
+  { grade: 0, keywords: ["روضة", "رياض الاطفال", "الروضة", "صف روضة", "kg2", "kg 2", "kg", "kg1", "0"] },
+];
+
+const extractGradeLevel = (className?: string): number | null => {
+  if (!className) return null;
+  const normalized = normalizeClassName(className);
+  if (!normalized) return null;
+
+  for (const { grade, keywords } of GRADE_KEYWORDS) {
+    const sortedKeywords = keywords.slice().sort((a, b) => b.length - a.length);
+    for (const keyword of sortedKeywords) {
+      if (normalized.includes(keyword)) {
+        return grade;
+      }
+    }
+  }
+
+  const digitMatch = normalized.match(/\b(1[0-2]|[0-9])\b/);
+  if (digitMatch) {
+    const parsed = Number.parseInt(digitMatch[1], 10);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return null;
+};
+
+const LOWER_LEVEL_KEYWORDS = ["روضه", "روضة", "رياض الاطفال", "رياضالاطفال", "kg", "كيجي", "تمهيدي"];
+const LOWER_ELEMENTARY_KEYWORDS = ["الاول", "اول", "الثاني", "ثاني", "الثالث", "ثالث"];
+
+const isLowerLevelClassName = (className?: string): boolean => {
+  if (!className) return false;
+  const normalized = normalizeClassName(className).replace(/\s+/g, "");
+  if (!normalized) return false;
+
+  if (LOWER_LEVEL_KEYWORDS.some((keyword) => normalized.includes(keyword))) {
+    return true;
+  }
+
+  if (LOWER_ELEMENTARY_KEYWORDS.some((keyword) => normalized.includes(keyword) && !normalized.includes("ثانوي"))) {
+    return true;
+  }
+
+  const digitMatch = normalized.match(/\b(0|1|2|3)\b/);
+  if (digitMatch && !normalized.includes("ثانوي")) {
+    return true;
+  }
+
+  return false;
+};
+
+const filterClassesByPreference = (classes: any[], preference?: "lower" | "upper") => {
+  if (!Array.isArray(classes)) return [];
+  if (preference === "lower") {
+    return classes.filter((group) => {
+      const grade = extractGradeLevel(group?.className);
+      if (grade == null) return isLowerLevelClassName(group?.className);
+      return grade <= 3;
+    });
+  }
+  if (preference === "upper") {
+    return classes.filter((group) => {
+      const grade = extractGradeLevel(group?.className);
+      if (grade == null) {
+        return !isLowerLevelClassName(group?.className);
+      }
+      return grade >= 4;
+    });
+  }
+  return classes.slice();
+};
+
+const filterStudentsByPreference = (classes: any[], students: any[], preference?: "lower" | "upper") => {
+  if (!Array.isArray(students)) return [];
+  const classNameLookup = new Map<string, string>();
+  classes.forEach((group) => {
+    const normalized = normalizeClassName(group?.className);
+    if (normalized) classNameLookup.set(normalized, group?.className);
+  });
+  const allowed = new Set(classNameLookup.keys());
+
+  return students.filter((student) => {
+    const studentClass = student?.class || "";
+    const normalizedStudentClass = normalizeClassName(studentClass);
+    const grade = extractGradeLevel(studentClass);
+
+    if (preference === "lower") {
+      if (grade != null && grade >= 4) return false;
+      if (grade == null && !isLowerLevelClassName(studentClass)) return false;
+      return allowed.has(normalizedStudentClass);
+    }
+
+    if (preference === "upper") {
+      if (grade == null) {
+        if (isLowerLevelClassName(studentClass)) return false;
+        return allowed.has(normalizedStudentClass);
+      }
+      if (grade < 4) return false;
+      return allowed.has(normalizedStudentClass);
+    }
+
+    if (allowed.size === 0) return true;
+    return allowed.has(normalizedStudentClass);
+  });
+};
+
 export default function MainGradebook() {
   const { toast } = useToast();
   const [settings, setSettings] = useState<StoredSettings | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadInfo, setDownloadInfo] = useState<{ id: string; filename?: string } | null>(null);
+  const [showGenerateOverlay, setShowGenerateOverlay] = useState(false);
+  const [generateCountdown, setGenerateCountdown] = useState(0);
+
+  useEffect(() => {
+    if (!showGenerateOverlay) return;
+    const interval = window.setInterval(() => {
+      setGenerateCountdown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [showGenerateOverlay]);
 
   useEffect(() => {
     try {
@@ -58,47 +218,91 @@ export default function MainGradebook() {
       return;
     }
 
+    const filteredClasses = filterClassesByPreference(settings?.classes ?? [], templatePreference);
+    const filteredStudents = filterStudentsByPreference(filteredClasses, settings?.students ?? [], templatePreference);
+
+    if (templatePreference && filteredClasses.length === 0) {
+      toast({
+        title: "لا توجد صفوف",
+        description: "لا توجد صفوف مناسبة للخيار المحدد. يرجى مراجعة الإعدادات أو اختيار خيار آخر",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (templatePreference && filteredStudents.length === 0) {
+      toast({
+        title: "لا توجد بيانات طلبة",
+        description: "لا توجد بيانات طلبة مناسبة للخيار المحدد. يرجى التأكد من تجهيز الصفوف المطلوبة",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
+      const WAIT_SECONDS = 15;
+
       setIsGenerating(true);
       setDownloadInfo(null);
+      setGenerateCountdown(WAIT_SECONDS);
+      setShowGenerateOverlay(true);
       const modeLabel = templatePreference === "lower" ? "(روضة - ثالث)" : templatePreference === "upper" ? "(رابع - ثاني ثانوي)" : "";
       toast({
         title: "جاري المعالجة",
         description: modeLabel ? `سيتم إنشاء دفتر العلامات الرئيسي ${modeLabel}` : "سيتم إنشاء دفتر العلامات الرئيسي الآن",
       });
 
-      const response = await fetch("/api/export/main-gradebook", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          teacherName: settings?.teacherName,
-          directorate: settings?.directorate,
-          school: settings?.school,
-          town: settings?.town,
-          program: settings?.program,
-          year: settings?.year,
-          isHomeroom: settings?.isHomeroom,
-          homeroomClass: settings?.homeroomClass,
-          templatePreference,
-          classes: settings?.classes ?? [],
-          students: settings?.students ?? [],
-        }),
+      let exportError: Error | null = null;
+
+      const minDelay = new Promise((resolve) => {
+        window.setTimeout(resolve, WAIT_SECONDS * 1000);
       });
 
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
+      const exportTask = (async () => {
+        try {
+          const response = await fetch("/api/export/main-gradebook", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              teacherName: settings?.teacherName,
+              directorate: settings?.directorate,
+              school: settings?.school,
+              town: settings?.town,
+              program: settings?.program,
+              year: settings?.year,
+              isHomeroom: settings?.isHomeroom,
+              homeroomClass: settings?.homeroomClass,
+              templatePreference,
+              classes: settings?.classes ?? [],
+              students: settings?.students ?? [],
+            }),
+          });
 
-      const data = await response.json();
-      if (!data?.id) {
-        throw new Error("الاستجابة غير صالحة");
-      }
+          if (!response.ok) {
+            const message = await response.text();
+            throw new Error(message || "تعذر إنشاء دفتر العلامات الرئيسي");
+          }
 
-      setDownloadInfo({ id: data.id, filename: data.filename });
-      toast({
-        title: "اكتمل الإنشاء",
-        description: data.filename ? `تم تجهيز الملف: ${data.filename}` : "يمكنك تنزيل الدفتر الآن",
-      });
+          const data = await response.json();
+          if (!data?.id) {
+            throw new Error("الاستجابة غير صالحة");
+          }
+
+          setDownloadInfo({ id: data.id, filename: data.filename });
+          toast({
+            title: "اكتمل الإنشاء",
+            description: data.filename ? `تم تجهيز الملف: ${data.filename}` : "يمكنك تنزيل الدفتر الآن",
+          });
+        } catch (error: any) {
+          exportError = error instanceof Error ? error : new Error("تعذر إنشاء دفتر العلامات الرئيسي");
+        }
+      })();
+
+      await Promise.all([exportTask, minDelay]);
+
+      if (exportError) {
+        throw exportError;
+      }
     } catch (error: any) {
       toast({
         title: "تعذر إنشاء الدفتر",
@@ -107,6 +311,8 @@ export default function MainGradebook() {
       });
     } finally {
       setIsGenerating(false);
+      setShowGenerateOverlay(false);
+      setGenerateCountdown(0);
     }
   };
 
@@ -149,6 +355,22 @@ export default function MainGradebook() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 px-4 pb-12 sm:px-6 lg:px-8" dir="rtl">
+      {showGenerateOverlay && (
+        <LoadingOverlay
+          message={`جاري إنشاء دفتر العلامات الرئيسي... يرجى الانتظار ${generateCountdown > 0 ? `${generateCountdown} ثانية` : "قليلًا"}`}
+        >
+          <div className="space-y-3 text-center">
+            <p className="text-sm text-muted-foreground">بدعم من شركائنا الإعلانيين</p>
+            <AdSlot
+              slot={AD_SLOTS.contentInline}
+              className="border-none bg-transparent p-0"
+              showLabel={false}
+              insStyle={{ display: "block", minHeight: "120px" }}
+            />
+          </div>
+        </LoadingOverlay>
+      )}
+
       <section className="rounded-3xl border border-border/70 bg-muted/30 px-6 py-8 shadow-sm sm:px-8">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-3">
