@@ -23,6 +23,7 @@ import { LoadingOverlay } from "@/components/LoadingOverlay";
 import { Save, RefreshCcw, Printer, ArrowUp, Sparkles, UploadCloud, Layers, Book, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { parseExcelFile, parseUnifiedReport, type ParsedData } from "@/lib/excelParser";
+import * as XLSX from "xlsx";
 
 const LEGACY_STORAGE_KEY = "appSettings";
 const UNIFIED_STORAGE_KEY = "unifiedSetupSettings";
@@ -111,7 +112,45 @@ export default function CombinedSettings() {
   }, []);
 
   // Agial file handlers
+  const ensureColumnExists = async (file: File, matchers: RegExp[], errorMessage: string) => {
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: "array" });
+    if (!workbook.SheetNames.length) {
+      throw new Error("الملف لا يحتوي على أي أوراق عمل صالحة.");
+    }
+
+    for (const sheetName of workbook.SheetNames) {
+      const sheet = workbook.Sheets[sheetName];
+      if (!sheet) continue;
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" }) as any[][];
+      for (let rowIndex = 0; rowIndex < Math.min(rows.length, 120); rowIndex++) {
+        const row = rows[rowIndex];
+        if (!row) continue;
+        for (const cell of row) {
+          const text = String(cell ?? "").trim();
+          if (!text) continue;
+          if (matchers.some((regex) => regex.test(text))) {
+            return;
+          }
+        }
+      }
+    }
+
+    throw new Error(errorMessage);
+  };
+
   const handleAgialFileSelect = async (selectedFile: File) => {
+    try {
+      await ensureColumnExists(
+        selectedFile,
+        [/رقم\s*(الإثبات|الهوية)/i],
+        "الملف لا يحتوي على عمود رقم الإثبات المطلوب. يرجى استخدام كشف من حساب المدرسة الرسمي."
+      );
+    } catch (validationError: any) {
+      handleUploadError(validationError?.message || "يتعين وجود عمود رقم الإثبات قبل رفع الملف.");
+      return;
+    }
+
     setAgialFile(selectedFile);
     setAgialProcessing(true);
     try {
@@ -140,6 +179,50 @@ export default function CombinedSettings() {
       setAgialFile(null);
     } finally {
       setAgialProcessing(false);
+    }
+  };
+
+  // EL file handlers
+  const handleElFileSelect = async (selectedFile: File) => {
+    try {
+      await ensureColumnExists(
+        selectedFile,
+        [/الرقم\s*الوطني/i, /رقم\s*وطني/i],
+        " الملف لا يحتوي على عمود الرقم الوطني المطلوب. يرجى استخدام نموذج الرسمي او استخدام ملف منصة أجيال النموذج الأول"
+      );
+    } catch (validationError: any) {
+      handleUploadError(validationError?.message || "الملف لا يحتوي على خانة رقم الإثبات المطلوبة.");
+      return;
+    }
+
+    setElFile(selectedFile);
+    setElProcessing(true);
+    try {
+      const data = await parseUnifiedReport(selectedFile);
+      setElParsedData(data);
+      setElClasses(data.classes);
+      setElWarnings(data.warnings ?? []);
+      toast({
+        title: "تم التحميل بنجاح",
+        description: `تم استخلاص ${data.students.length} طالب/ة من ${data.classes.length} صف من نموذج EL_StudentInfoReport`,
+        variant: "success",
+      });
+      if (data.warnings?.length) {
+        toast({
+          title: "تحذيرات في الملف",
+          description: data.warnings.join("\n"),
+          variant: "warning",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "خطأ في معالجة الملف",
+        description: error.message || "حدث خطأ أثناء قراءة نموذج EL_StudentInfoReport",
+        variant: "destructive",
+      });
+      setElFile(null);
+    } finally {
+      setElProcessing(false);
     }
   };
 
@@ -180,39 +263,6 @@ export default function CombinedSettings() {
       description: "تم مسح جميع تجهيزات ملف أجيال",
       variant: "warning",
     });
-  };
-
-  // EL file handlers
-  const handleElFileSelect = async (selectedFile: File) => {
-    setElFile(selectedFile);
-    setElProcessing(true);
-    try {
-      const data = await parseUnifiedReport(selectedFile);
-      setElParsedData(data);
-      setElClasses(data.classes);
-      setElWarnings(data.warnings ?? []);
-      toast({
-        title: "تم التحميل بنجاح",
-        description: `تم استخلاص ${data.students.length} طالب/ة من ${data.classes.length} صف`,
-        variant: "success",
-      });
-      if (data.warnings?.length) {
-        toast({
-          title: "ملاحظات على النموذج",
-          description: data.warnings.join("\n"),
-          variant: "warning",
-        });
-      }
-    } catch (error: any) {
-      toast({
-        title: "خطأ في قراءة النموذج",
-        description: error.message || "تعذر معالجة ملف منصة أجيال - النموذج الثاني",
-        variant: "destructive",
-      });
-      setElFile(null);
-    } finally {
-      setElProcessing(false);
-    }
   };
 
   const handleElSave = () => {
@@ -528,7 +578,8 @@ export default function CombinedSettings() {
                 <CardTitle className="flex items-center gap-2 text-xl">
                   <UploadCloud className="h-5 w-5 text-primary" /> رفع ملف منصة أجيال - النموذج الثاني
                 </CardTitle>
-                <CardDescription>قم برفع ملف XLS / XLSX الذي يحتوي على كشف الطلبة (النموذج الثاني)</CardDescription>
+                <CardDescription>قم برفع ملف XLS / XLSX الذي يحتوي على كشف الطلبة (النموذج الثاني)
+</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <FileUploadZone
