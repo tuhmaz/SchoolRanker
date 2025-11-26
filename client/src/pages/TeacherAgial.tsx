@@ -71,10 +71,9 @@ export default function TeacherAgial() {
 
   const handleFileSelect = async (selectedFile: File) => {
     const normalizedName = selectedFile.name.trim().toLowerCase();
-    const allowedFileNames = ["studentsnamereport-2.xls", "studentsnamereport-2.xlsx", "studentsnamereport.xls", "studentsnamereport.xlsx"];
-
-    if (!allowedFileNames.includes(normalizedName)) {
-      handleUploadError("يُسمح فقط برفع ملف من حساب المعلم الصادر من منصة أجيال.");
+    const ext = normalizedName.split('.').pop();
+    if (!ext || !["xls", "xlsx"].includes(ext)) {
+      handleUploadError("الملف يجب أن يكون بصيغة Excel (XLS/XLSX).");
       return;
     }
 
