@@ -4,11 +4,12 @@ import { Link, useLocation } from "wouter";
 import { Logo } from "@/components/Logo";
 import { AdSlot } from "@/components/ads/AdSlot";
 import { AD_SLOTS } from "@/config/ads";
+import { useAuth } from "@/hooks/useAuth";
 
 const TEACHER_AGIAL_NEW_START = new Date(2025, 10, 21);
 const TEACHER_AGIAL_NEW_END = new Date(2025, 10, 28);
 
-const menuItems = [
+const baseMenuItems = [
   { title: "خدمتك", url: "/", icon: Home, testId: "nav-home" },
   { title: "التجهيزات الأساسية", url: "/settings", icon: Settings, testId: "nav-settings" },
   { title: "صفحة المعلم أجيال", url: "/teacher-agial", icon: GraduationCap, testId: "nav-teacher-agial" },
@@ -29,8 +30,23 @@ const menuItems = [
 export function AppSidebar() {
   const [location] = useLocation();
   const { isMobile, setOpenMobile } = useSidebar();
+  const { user } = useAuth();
   const currentDate = new Date();
   const showTeacherAgialNewBadge = currentDate >= TEACHER_AGIAL_NEW_START && currentDate < TEACHER_AGIAL_NEW_END;
+
+  const menuItems = user
+    ? [
+        ...baseMenuItems.slice(0, 4),
+        { title: "سجل علامات جانبي (حسابي)", url: "/dashboard/side-gradebook", icon: FileSpreadsheet, testId: "nav-dashboard-side-gradebook" },
+        { title: "دفتر علامات رئيسي (حسابي)", url: "/dashboard/main-gradebook", icon: FileCheck, testId: "nav-dashboard-main-gradebook" },
+        { title: "دفتر حضور وغياب (حسابي)", url: "/dashboard/attendance", icon: ClipboardList, testId: "nav-dashboard-attendance" },
+        { title: "سجل الحصة الصفية (حسابي)", url: "/dashboard/lesson-attendance", icon: Users, testId: "nav-dashboard-lesson-attendance" },
+        { title: "سجل أداء وملاحظة (حسابي)", url: "/dashboard/performance", icon: FileText, testId: "nav-dashboard-performance" },
+        ...baseMenuItems
+          .slice(4)
+          .filter((item) => item.url !== "/performance" && item.url !== "/main-gradebook" && item.url !== "/attendance" && item.url !== "/lesson-attendance"),
+      ]
+    : baseMenuItems;
 
   const handleNavigate = () => {
     if (isMobile) {

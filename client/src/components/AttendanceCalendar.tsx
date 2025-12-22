@@ -12,12 +12,12 @@ import { Users } from "lucide-react";
 
 type Mode = "daily" | "weekly" | "monthly";
 
-type AttendanceMatrix = Record<string, Record<string, boolean>>;
+type AttendanceMatrix = Record<string, Record<string, AttendanceStatus>>;
 
 interface AttendanceCalendarProps {
   students: { id: string; name: string }[];
   attendanceByDate?: Record<string, { studentId: string; status: AttendanceStatus }[]>;
-  onAttendanceChange?: (updates: Record<string, { studentId: string; present: boolean }[]>) => void;
+  onAttendanceChange?: (updates: Record<string, { studentId: string; status: AttendanceStatus }[]>) => void;
   disableDailyView?: boolean;
   onChangesSaved?: () => void;
   anchorMonth?: number;
@@ -246,15 +246,15 @@ export function AttendanceCalendar({
       const next: AttendanceMatrix = {};
       students.forEach((student) => {
         const prevRow = prev[student.id] ?? {};
-        const row: Record<string, boolean> = {};
+        const row: Record<string, AttendanceStatus> = {};
         selectedDateIsos.forEach((dateIso) => {
           const existingEntry = attendanceByDate?.[dateIso]?.find((record) => record.studentId === student.id);
           if (existingEntry) {
-            row[dateIso] = existingEntry.status === "present";
+            row[dateIso] = existingEntry.status;
           } else if (prevRow[dateIso] !== undefined) {
             row[dateIso] = prevRow[dateIso];
           } else {
-            row[dateIso] = true;
+            row[dateIso] = "present";
           }
         });
         next[student.id] = row;
@@ -266,11 +266,11 @@ export function AttendanceCalendar({
   const emitChange = useCallback(
     (next: AttendanceMatrix) => {
       if (!onAttendanceChange) return;
-      const updates: Record<string, { studentId: string; present: boolean }[]> = {};
+      const updates: Record<string, { studentId: string; status: AttendanceStatus }[]> = {};
       selectedDateIsos.forEach((dateIso) => {
         updates[dateIso] = students.map((student) => ({
           studentId: student.id,
-          present: next[student.id]?.[dateIso] ?? true,
+          status: next[student.id]?.[dateIso] ?? "present",
         }));
       });
       onAttendanceChange(updates);
@@ -296,23 +296,30 @@ export function AttendanceCalendar({
     onChangesSaved?.();
   };
 
+  const cycleStatus = (current: AttendanceStatus) => {
+    if (current === "present") return "absent";
+    if (current === "absent") return "excused";
+    return "present";
+  };
+
   const toggleCell = (studentId: string, dateIso: string) => {
     updateMatrix((prev) => {
       const next = { ...prev };
       const row = { ...(next[studentId] ?? {}) };
-      row[dateIso] = !(row[dateIso] ?? true);
+      const current = row[dateIso] ?? "present";
+      row[dateIso] = cycleStatus(current);
       next[studentId] = row;
       return next;
     });
   };
 
-  const handleMarkAll = (present: boolean) => {
+  const handleMarkAll = (status: AttendanceStatus) => {
     updateMatrix((prev) => {
       const next = { ...prev };
       students.forEach((student) => {
         const row = { ...(next[student.id] ?? {}) };
         selectedDateIsos.forEach((dateIso) => {
-          row[dateIso] = present;
+          row[dateIso] = status;
         });
         next[student.id] = row;
       });
@@ -386,21 +393,27 @@ export function AttendanceCalendar({
   }, [mode, selectedDates, anchorDate]);
 
   const totalCells = students.length * selectedDateIsos.length;
-  const presentCount = useMemo(() => {
-    let total = 0;
+  const statusCounts = useMemo(() => {
+    let present = 0;
+    let absent = 0;
+    let excused = 0;
     students.forEach((student) => {
       const row = matrix[student.id] ?? {};
       selectedDateIsos.forEach((dateIso) => {
-        if (row[dateIso] !== false) {
-          total += 1;
-        }
+        const status = row[dateIso] ?? "present";
+        if (status === "present") present += 1;
+        else if (status === "absent") absent += 1;
+        else excused += 1;
       });
     });
-    return total;
+    return { present, absent, excused };
   }, [matrix, students, selectedDateIsos]);
 
-  const absentCount = totalCells - presentCount;
-  const percentage = totalCells > 0 ? Math.round((presentCount / totalCells) * 100) : 100;
+  const presentCount = statusCounts.present;
+  const absentCount = statusCounts.absent;
+  const excusedCount = statusCounts.excused;
+  const effectiveCells = Math.max(0, totalCells - excusedCount);
+  const percentage = effectiveCells > 0 ? Math.round((presentCount / effectiveCells) * 100) : 100;
 
   const toggleWeekCollapse = useCallback((key: string) => {
     setCollapsedWeeks((prev) => ({
@@ -416,33 +429,38 @@ export function AttendanceCalendar({
     }));
   }, []);
 
+  const getStatusTone = (status: AttendanceStatus) => {
+    if (status === "present") return { label: "حاضر", pill: "bg-chart-1/20 text-chart-1", row: "bg-chart-1/5" };
+    if (status === "absent") return { label: "غائب", pill: "bg-destructive/20 text-destructive", row: "bg-destructive/5" };
+    return { label: "معذور", pill: "bg-amber-500/20 text-amber-800 dark:text-amber-200", row: "bg-amber-500/10" };
+  };
+
   const dailyContent = !disableDailyView && mode === "daily" && selectedDateIsos[0]
     ? (
       <div className="space-y-2 max-h-[420px] overflow-y-auto">
         {students.map((student, idx) => {
           const dateIso = selectedDateIsos[0];
-          const present = matrix[student.id]?.[dateIso] ?? true;
+          const status = matrix[student.id]?.[dateIso] ?? "present";
+          const tone = getStatusTone(status);
           return (
             <div
               key={student.id}
               className={cn(
                 "flex items-center justify-between p-3 rounded-lg border border-border",
-                present ? "bg-chart-1/5" : "bg-destructive/5",
+                tone.row,
               )}
               data-testid={`attendance-row-${idx}`}
             >
               <div className="flex items-center gap-3">
-                <Checkbox checked={present} onCheckedChange={() => toggleCell(student.id, dateIso)} />
                 <span className="font-medium">{student.name}</span>
               </div>
-              <span
-                className={cn(
-                  "text-sm px-3 py-1 rounded-full",
-                  present ? "bg-chart-1/20 text-chart-1" : "bg-destructive/20 text-destructive",
-                )}
+              <button
+                type="button"
+                onClick={() => toggleCell(student.id, dateIso)}
+                className={cn("text-sm px-3 py-1 rounded-full transition-colors", tone.pill)}
               >
-                {present ? "حاضر" : "غائب"}
-              </span>
+                {tone.label}
+              </button>
             </div>
           );
         })}
@@ -500,19 +518,22 @@ export function AttendanceCalendar({
                     {!isCollapsed ? (
                       <div className="mt-2 space-y-2 px-2 pb-2">
                         {students.map((student) => {
-                          const present = matrix[student.id]?.[iso] ?? true;
+                          const status = matrix[student.id]?.[iso] ?? "present";
+                          const tone = getStatusTone(status);
                           return (
-                            <label
+                            <div
                               key={student.id}
                               className="flex items-center justify-between gap-2 rounded-md border border-border/60 bg-muted/20 px-2 py-1 text-xs"
                             >
                               <span className="truncate font-medium">{student.name}</span>
-                              <Checkbox
-                                checked={present}
-                                onCheckedChange={() => toggleCell(student.id, iso)}
-                                className="h-4 w-4"
-                              />
-                            </label>
+                              <button
+                                type="button"
+                                onClick={() => toggleCell(student.id, iso)}
+                                className={cn("rounded-full px-2 py-0.5 text-[11px] font-semibold", tone.pill)}
+                              >
+                                {tone.label}
+                              </button>
+                            </div>
                           );
                         })}
                       </div>
@@ -556,10 +577,20 @@ export function AttendanceCalendar({
                           );
                         }
                         const iso = formatIso(date);
-                        const present = matrix[student.id]?.[iso] ?? true;
+                        const status = matrix[student.id]?.[iso] ?? "present";
+                        const statusTone = getStatusTone(status);
                         return (
                           <td key={idx} className={cn("px-2 py-2", tone)}>
-                            <Checkbox checked={present} onCheckedChange={() => toggleCell(student.id, iso)} />
+                            <button
+                              type="button"
+                              onClick={() => toggleCell(student.id, iso)}
+                              className={cn(
+                                "mx-auto flex h-7 min-w-16 items-center justify-center rounded-full px-2 text-xs font-semibold transition-colors",
+                                statusTone.pill,
+                              )}
+                            >
+                              {statusTone.label}
+                            </button>
                           </td>
                         );
                       })}
@@ -628,15 +659,23 @@ export function AttendanceCalendar({
                           );
                         }
                         const iso = formatIso(date);
-                        const presentForDay = students.reduce(
-                          (total, student) => (matrix[student.id]?.[iso] === false ? total : total + 1),
-                          0,
+                        const dayCounts = students.reduce(
+                          (acc, student) => {
+                            const status = matrix[student.id]?.[iso] ?? "present";
+                            if (status === "present") acc.present += 1;
+                            else if (status === "absent") acc.absent += 1;
+                            else acc.excused += 1;
+                            return acc;
+                          },
+                          { present: 0, absent: 0, excused: 0 },
                         );
                         const saturation =
-                          presentForDay === students.length
+                          dayCounts.absent === 0 && dayCounts.excused === 0
                             ? "bg-emerald-500/10 border-emerald-300/40"
-                            : presentForDay === 0
+                            : dayCounts.present === 0 && dayCounts.excused === 0
                             ? "bg-destructive/10 border-destructive/40"
+                            : dayCounts.present === 0 && dayCounts.excused > 0
+                            ? "bg-amber-500/10 border-amber-300/50"
                             : "bg-background";
                         return (
                           <div
@@ -651,23 +690,28 @@ export function AttendanceCalendar({
                               <span>{formatArabicDate(date, false)}</span>
                             </div>
                             <div className="mt-2 text-xs text-muted-foreground">
-                              {presentForDay}/{students.length} حاضر
+                              {dayCounts.present}/{students.length} حاضر
+                              {dayCounts.absent ? ` • ${dayCounts.absent} غائب` : ""}
+                              {dayCounts.excused ? ` • ${dayCounts.excused} معذور` : ""}
                             </div>
                             <div className="mt-3 space-y-2 max-h-44 overflow-y-auto pr-1">
                               {students.map((student) => {
-                                const present = matrix[student.id]?.[iso] ?? true;
+                                const status = matrix[student.id]?.[iso] ?? "present";
+                                const tone = getStatusTone(status);
                                 return (
-                                  <label
+                                  <div
                                     key={student.id}
                                     className="flex items-center justify-between gap-2 rounded-md border border-border/60 bg-background/80 px-2 py-1 text-xs"
                                   >
                                     <span className="truncate">{student.name}</span>
-                                    <Checkbox
-                                      checked={present}
-                                      onCheckedChange={() => toggleCell(student.id, iso)}
-                                      className="h-4 w-4"
-                                    />
-                                  </label>
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleCell(student.id, iso)}
+                                      className={cn("rounded-full px-2 py-0.5 text-[11px] font-semibold", tone.pill)}
+                                    >
+                                      {tone.label}
+                                    </button>
+                                  </div>
                                 );
                               })}
                             </div>
@@ -733,11 +777,14 @@ export function AttendanceCalendar({
                   حفظ التغييرات
                 </Button>
               )}
-              <Button variant="outline" size="sm" onClick={() => handleMarkAll(true)} data-testid="button-mark-all-present">
+              <Button variant="outline" size="sm" onClick={() => handleMarkAll("present")} data-testid="button-mark-all-present">
                 تحديد الكل حاضر
               </Button>
-              <Button variant="outline" size="sm" onClick={() => handleMarkAll(false)} data-testid="button-mark-all-absent">
+              <Button variant="outline" size="sm" onClick={() => handleMarkAll("absent")} data-testid="button-mark-all-absent">
                 تحديد الكل غائب
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => handleMarkAll("excused")} data-testid="button-mark-all-excused">
+                تحديد الكل معذور
               </Button>
             </div>
           </div>
@@ -746,7 +793,7 @@ export function AttendanceCalendar({
           {weeklyContent}
           {monthlyContent}
 
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-4">
             <div className="rounded-lg border border-border/60 bg-chart-1/10 p-3">
               <p className="text-sm text-muted-foreground">الحضور</p>
               <p className="text-2xl font-bold text-chart-1" data-testid="present-count">
@@ -757,6 +804,12 @@ export function AttendanceCalendar({
               <p className="text-sm text-muted-foreground">الغياب</p>
               <p className="text-2xl font-bold text-destructive" data-testid="absent-count">
                 {absentCount}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border/60 bg-amber-500/10 p-3">
+              <p className="text-sm text-muted-foreground">الأعذار</p>
+              <p className="text-2xl font-bold text-amber-700 dark:text-amber-200" data-testid="excused-count">
+                {excusedCount}
               </p>
             </div>
             <div className="rounded-lg border border-border/60 bg-primary/10 p-3">

@@ -4,11 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { CalendarDays, ClipboardList, Download, Loader2, RotateCcw, Sparkles, Users } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ArrowRight, CalendarDays, ClipboardList, Download, Loader2, RotateCcw, Save, Sparkles, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
+import { Link, useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest, getQueryFn, queryClient } from "@/lib/queryClient";
+import { AttendanceStatus } from "@/types/attendance";
 
 interface StoredStudent {
   id: string;
@@ -34,6 +39,31 @@ interface StoredSettings {
   }[];
   students?: StoredStudent[];
 }
+
+type RecordsData = {
+  teacherName?: string;
+  directorate?: string;
+  school?: string;
+  town?: string;
+  program?: string;
+  year?: string;
+  students: Array<{ id: string; name: string; class: string; division: string }>;
+  classes: Array<{
+    className: string;
+    divisions: Array<{ id: string; division: string; subjects?: Array<{ id: string; name: string }> }>;
+  }>;
+};
+
+type RecordsResponse = {
+  ok: true;
+  record: { data: RecordsData; updatedAt: string } | null;
+};
+
+type DashboardLessonAttendanceResponse = {
+  ok: true;
+  lessonAttendance?: any | null;
+  updatedAt?: string | null;
+};
 
 interface DivisionOption {
   id: string;
@@ -106,7 +136,10 @@ const LESSON_CARD_VARIANTS = [
 
 export default function LessonAttendancePage() {
   const { toast } = useToast();
-  const [settings, setSettings] = useState<StoredSettings | null>(null);
+  const { user } = useAuth();
+  const [location] = useLocation();
+  const isDashboardContext = location.startsWith("/dashboard");
+  const [localSettings, setLocalSettings] = useState<StoredSettings | null>(null);
   const [day, setDay] = useState<string>(DAY_OPTIONS[0]);
   const [date, setDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [teacherName, setTeacherName] = useState<string>("");
@@ -114,15 +147,69 @@ export default function LessonAttendancePage() {
   const [lessonConfigs, setLessonConfigs] = useState<LessonConfig[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [downloadInfo, setDownloadInfo] = useState<{ id: string; filename?: string } | null>(null);
   const [accordionValue, setAccordionValue] = useState<string | undefined>("lesson-1");
+  const [hasHydrated, setHasHydrated] = useState(false);
+
+  const recordsQuery = useQuery<RecordsResponse>({
+    queryKey: ["/api/dashboard/records"],
+    queryFn: getQueryFn<RecordsResponse>({ on401: "throw" }),
+    enabled: Boolean(user) && isDashboardContext,
+    refetchOnWindowFocus: false,
+  });
+
+  const serverSettings = useMemo<StoredSettings | null>(() => {
+    const record = recordsQuery.data?.record?.data ?? null;
+    if (!record) return null;
+    const students: StoredStudent[] = Array.isArray(record.students)
+      ? record.students.map((student) => ({
+          id: String(student.id),
+          name: String(student.name ?? ""),
+          class: String(student.class ?? ""),
+          division: String(student.division ?? ""),
+        }))
+      : [];
+    const classes = Array.isArray(record.classes)
+      ? record.classes.map((group) => ({
+          className: String(group.className ?? ""),
+          divisions: Array.isArray(group.divisions)
+            ? group.divisions.map((div) => ({
+                id: String(div.id),
+                division: String(div.division ?? ""),
+                subjects: Array.isArray(div.subjects)
+                  ? div.subjects.map((subject) => ({ id: String(subject.id), name: String(subject.name ?? "") }))
+                  : [],
+              }))
+            : [],
+        }))
+      : [];
+    return {
+      teacherName: record.teacherName,
+      directorate: record.directorate,
+      school: record.school,
+      town: record.town,
+      program: record.program,
+      year: record.year,
+      students,
+      classes,
+    };
+  }, [recordsQuery.data]);
+
+  const lessonAttendanceQuery = useQuery<DashboardLessonAttendanceResponse>({
+    queryKey: ["/api/dashboard/lesson-attendance"],
+    queryFn: getQueryFn<DashboardLessonAttendanceResponse>({ on401: "throw" }),
+    enabled: Boolean(user) && isDashboardContext,
+    refetchOnWindowFocus: false,
+  });
 
   useEffect(() => {
+    if (isDashboardContext) return;
     try {
       const raw = localStorage.getItem("appSettings");
       if (!raw) return;
       const parsed = JSON.parse(raw) as StoredSettings;
-      setSettings(parsed);
+      setLocalSettings(parsed);
       if (parsed.teacherName) {
         setTeacherName(parsed.teacherName);
       }
@@ -133,7 +220,7 @@ export default function LessonAttendancePage() {
         variant: "destructive",
       });
     }
-  }, [toast]);
+  }, [isDashboardContext, toast]);
 
   useEffect(() => {
     const today = new Date();
@@ -141,6 +228,13 @@ export default function LessonAttendancePage() {
     setDay(arabicDay);
     setDate(today.toISOString().slice(0, 10));
   }, []);
+
+  const settings = isDashboardContext ? serverSettings : localSettings;
+
+  useEffect(() => {
+    if (!settings?.teacherName) return;
+    setTeacherName((prev) => (prev.trim().length > 0 ? prev : String(settings.teacherName ?? "")));
+  }, [settings?.teacherName]);
 
   const divisionOptions = useMemo<DivisionOption[]>(() => {
     if (!settings?.classes) return [];
@@ -212,6 +306,95 @@ export default function LessonAttendancePage() {
       return next;
     });
   }, [divisionOptions, divisionMap]);
+
+  useEffect(() => {
+    if (!isDashboardContext || !user) return;
+    if (hasHydrated) return;
+    if (!settings) return;
+    const stored = lessonAttendanceQuery.data?.lessonAttendance ?? null;
+    if (!stored || typeof stored !== "object") return;
+
+    const storedSessionsRaw = Array.isArray((stored as any).sessions)
+      ? (stored as any).sessions
+      : Array.isArray((stored as any).lessons)
+        ? (stored as any).lessons.map((lesson: any) => ({ ...lesson, presentById: {} }))
+        : [];
+
+    if (typeof (stored as any).day === "string" && (stored as any).day.trim().length > 0) {
+      setDay((stored as any).day);
+    }
+    if (typeof (stored as any).date === "string" && (stored as any).date.trim().length > 0) {
+      setDate((stored as any).date);
+    }
+    if (typeof (stored as any).teacherName === "string" && (stored as any).teacherName.trim().length > 0) {
+      setTeacherName((stored as any).teacherName);
+    }
+    if (typeof (stored as any).signature === "string") {
+      setSignature((stored as any).signature);
+    }
+
+    setLessonConfigs((prev) => {
+      return Array.from({ length: MAX_LESSONS }, (_, idx) => {
+        const fallback = prev[idx];
+        const storedSession = storedSessionsRaw[idx] ?? null;
+        const candidateDivisionId =
+          typeof storedSession?.divisionId === "string" && storedSession.divisionId.trim().length > 0
+            ? storedSession.divisionId
+            : typeof fallback?.divisionId === "string"
+              ? fallback.divisionId
+              : "";
+
+        let division = candidateDivisionId ? divisionMap.get(candidateDivisionId) : undefined;
+        if (!division) {
+          division = divisionOptions[Math.min(idx, divisionOptions.length - 1)] ?? divisionOptions[0];
+        }
+
+        const students = division?.students ?? [];
+        const presentById: Record<string, boolean> = {};
+        students.forEach((student) => {
+          const storedValue = storedSession?.presentById?.[student.id];
+          const fallbackValue = fallback?.presentById?.[student.id];
+          presentById[student.id] = typeof storedValue === "boolean" ? storedValue : typeof fallbackValue === "boolean" ? fallbackValue : true;
+        });
+
+        const candidateSubjectId =
+          typeof storedSession?.subjectId === "string" && storedSession.subjectId.trim().length > 0
+            ? storedSession.subjectId
+            : typeof fallback?.subjectId === "string"
+              ? fallback.subjectId
+              : undefined;
+
+        const subjectId =
+          candidateSubjectId && division?.subjects.some((subject) => subject.id === candidateSubjectId)
+            ? candidateSubjectId
+            : division?.subjects[0]?.id;
+
+        const name =
+          typeof storedSession?.name === "string" && storedSession.name.trim().length > 0
+            ? storedSession.name
+            : typeof fallback?.name === "string" && fallback.name.trim().length > 0
+              ? fallback.name
+              : LESSON_DEFAULTS[idx] ?? `حصة ${idx + 1}`;
+
+        const active =
+          typeof storedSession?.active === "boolean"
+            ? storedSession.active
+            : typeof fallback?.active === "boolean"
+              ? fallback.active
+              : idx === 0;
+
+        return {
+          name,
+          divisionId: division?.id ?? "",
+          subjectId,
+          presentById,
+          active,
+        } satisfies LessonConfig;
+      });
+    });
+
+    setHasHydrated(true);
+  }, [divisionMap, divisionOptions, hasHydrated, isDashboardContext, lessonAttendanceQuery.data, settings, user]);
 
   const updateLesson = (index: number, updater: (prev: LessonConfig) => LessonConfig) => {
     setLessonConfigs((prev) => {
@@ -357,6 +540,110 @@ export default function LessonAttendancePage() {
   );
 
   const numberFormatter = useMemo(() => new Intl.NumberFormat("ar-EG"), []);
+
+  const applySessionsToAttendance = async (targetDate: string, sessions: LessonConfig[]) => {
+    const byDivisionId = new Map<string, { studentIds: string[]; absentSet: Set<string> }>();
+
+    sessions
+      .filter((session) => session.active && session.divisionId && divisionMap.has(session.divisionId))
+      .forEach((session) => {
+        const division = divisionMap.get(session.divisionId);
+        if (!division) return;
+        const existing = byDivisionId.get(division.id) ?? {
+          studentIds: division.students.map((student) => student.id),
+          absentSet: new Set<string>(),
+        };
+        division.students.forEach((student) => {
+          if (session.presentById?.[student.id] === false) {
+            existing.absentSet.add(student.id);
+          }
+        });
+        byDivisionId.set(division.id, existing);
+      });
+
+    const divisionEntries = Array.from(byDivisionId.entries());
+    await Promise.all(
+      divisionEntries.map(async ([divisionId, info]) => {
+        const getRes = await fetch(`/api/dashboard/attendance?divisionId=${encodeURIComponent(divisionId)}`, {
+          credentials: "include",
+        });
+        if (!getRes.ok) {
+          const text = (await getRes.text()) || getRes.statusText;
+          throw new Error(text);
+        }
+        const getData = (await getRes.json()) as {
+          attendanceByDate?: Record<string, Array<{ studentId: string; status: AttendanceStatus }>>;
+        };
+        const current = getData.attendanceByDate ?? {};
+        const nextForDay = info.studentIds.map((studentId) => ({
+          studentId,
+          status: (info.absentSet.has(studentId) ? "absent" : "present") as AttendanceStatus,
+        }));
+        const next = { ...current, [targetDate]: nextForDay };
+
+        const putRes = await apiRequest("PUT", "/api/dashboard/attendance", { divisionId, attendanceByDate: next });
+        const putData = (await putRes.json()) as any;
+        queryClient.setQueryData(["/api/dashboard/attendance", divisionId], putData);
+      }),
+    );
+
+    queryClient.invalidateQueries({ queryKey: ["/api/dashboard/attendance"] });
+  };
+
+  const saveToAccount = async () => {
+    if (!isDashboardContext || !user) return;
+    if (!settings) {
+      toast({
+        title: "البيانات غير مكتملة",
+        description: "يرجى تجهيز بيانات السجلات أولاً من صفحة إدارة السجلات",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!day || !date) {
+      toast({
+        title: "البيانات غير مكتملة",
+        description: "يرجى تحديد اليوم والتاريخ قبل الحفظ",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      const payload = {
+        sessions: lessonConfigs.map((lesson, index) => ({
+          name: lesson.name?.trim() || LESSON_DEFAULTS[index] || `حصة ${index + 1}`,
+          divisionId: lesson.divisionId,
+          subjectId: lesson.subjectId,
+          presentById: lesson.presentById ?? {},
+          active: Boolean(lesson.active),
+        })),
+        day,
+        date,
+        teacherName: teacherName || settings.teacherName,
+        signature: signature || undefined,
+      };
+
+      await apiRequest("PUT", "/api/dashboard/lesson-attendance", payload);
+      await applySessionsToAttendance(date, payload.sessions);
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/lesson-attendance"] });
+
+      toast({
+        title: "تم الحفظ",
+        description: "تم حفظ سجل الحصة وتحديث الحضور والغياب مباشرة",
+      });
+    } catch (error: any) {
+      toast({
+        title: "تعذر الحفظ",
+        description: String(error?.message ?? "حدث خطأ غير متوقع"),
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleGenerate = async () => {
     if (!settings) {
@@ -593,6 +880,12 @@ export default function LessonAttendancePage() {
 
       <section className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap gap-2">
+          {isDashboardContext ? (
+            <Button className="gap-2" variant="default" onClick={saveToAccount} disabled={isSaving || divisionOptions.length === 0}>
+              {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              حفظ على الحساب
+            </Button>
+          ) : null}
           <Button
             className="gap-2"
             variant="default"
@@ -611,9 +904,19 @@ export default function LessonAttendancePage() {
             إعادة تعيين الحضور
           </Button>
         </div>
-        <div className="flex items-center gap-2 rounded-2xl border border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground sm:text-sm">
-          <Users className="h-4 w-4 text-primary" />
-          يتم اعتبار الطالب حاضرًا افتراضيًا ما لم يتم إلغاء تحديده.
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+          <div className="flex items-center gap-2 rounded-2xl border border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground sm:text-sm">
+            <Users className="h-4 w-4 text-primary" />
+            يتم اعتبار الطالب حاضرًا افتراضيًا ما لم يتم إلغاء تحديده.
+          </div>
+          {isDashboardContext ? (
+            <Button variant="secondary" asChild className="w-full gap-2 sm:w-auto">
+              <Link href="/dashboard">
+                <ArrowRight className="ml-2 h-4 w-4" />
+                العودة للوحة التحكم
+              </Link>
+            </Button>
+          ) : null}
         </div>
       </section>
 
@@ -622,7 +925,9 @@ export default function LessonAttendancePage() {
           <CardHeader>
             <CardTitle>لا توجد بيانات صفوف</CardTitle>
             <CardDescription>
-              يرجى رفع ملف الطلبة من صفحة التجهيزات أولاً ثم العودة لإعداد سجل الحصة الصفية.
+              {isDashboardContext
+                ? "يرجى تجهيز الصفوف والطلبة من صفحة إدارة السجلات أولاً ثم العودة لإعداد سجل الحصة الصفية."
+                : "يرجى رفع ملف الطلبة من صفحة التجهيزات أولاً ثم العودة لإعداد سجل الحصة الصفية."}
             </CardDescription>
           </CardHeader>
         </Card>
@@ -739,7 +1044,7 @@ export default function LessonAttendancePage() {
                           <span>{summary.absentCount} غائب</span>
                           <Checkbox
                             checked={lesson.active}
-                            onCheckedChange={(checked) => {
+                            onCheckedChange={(checked: boolean) => {
                               toggleLessonActive(index);
                               if (checked) {
                                 setAccordionValue(`lesson-${index + 1}`);

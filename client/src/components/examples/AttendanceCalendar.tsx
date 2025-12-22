@@ -13,8 +13,8 @@ export default function AttendanceCalendarExample() {
     <div className="p-6">
       <AttendanceCalendar
         students={students}
-        onAttendanceChange={(date, records) => {
-          console.log('Attendance updated:', date, records);
+        onAttendanceChange={(updates) => {
+          console.log("Attendance updated:", updates);
         }}
       />
     </div>

@@ -20,16 +20,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { FileUploadZone } from "@/components/FileUploadZone";
 import { ClassSubjectManager } from "@/components/ClassSubjectManager";
 import { LoadingOverlay } from "@/components/LoadingOverlay";
-import { Save, RefreshCcw, Printer, ArrowUp, Sparkles, UploadCloud, Layers, Book, Shield } from "lucide-react";
+import { Save, RefreshCcw, Printer, ArrowUp, Sparkles, UploadCloud, Layers, Book, Shield, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { parseExcelFile, parseUnifiedReport, type ParsedData } from "@/lib/excelParser";
 import * as XLSX from "xlsx";
+import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/useAuth";
 
 const LEGACY_STORAGE_KEY = "appSettings";
 const UNIFIED_STORAGE_KEY = "unifiedSetupSettings";
 
 export default function CombinedSettings() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("agial");
 
   // Agial tab state
@@ -59,6 +62,8 @@ export default function CombinedSettings() {
   const [elWarnings, setElWarnings] = useState<string[]>([]);
 
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [isSyncingAgial, setIsSyncingAgial] = useState(false);
+  const [isSyncingEl, setIsSyncingEl] = useState(false);
 
   // Load Agial settings
   useEffect(() => {
@@ -246,6 +251,72 @@ export default function CombinedSettings() {
     });
   };
 
+  const handleAgialSyncToDashboard = async () => {
+    if (isSyncingAgial) return;
+    const students = (agialParsedData?.students ?? []).map((student: any) => {
+      const primary = typeof student?.nationalId === "string" ? student.nationalId.trim() : "";
+      if (primary) return { ...student, nationalId: primary };
+
+      const altKeys = [
+        "idNumber",
+        "nationalID",
+        "national_id",
+        "proofNumber",
+        "proofNo",
+        "identityNumber",
+        "idNo",
+      ];
+      for (const key of altKeys) {
+        const value = student?.[key];
+        if (value == null) continue;
+        const normalized = String(value).trim();
+        if (normalized) return { ...student, nationalId: normalized };
+      }
+
+      const idValue = typeof student?.id === "string" ? student.id.trim() : "";
+      if (idValue && !/^student-|^sheet-/.test(idValue)) {
+        return { ...student, nationalId: idValue };
+      }
+
+      return student;
+    });
+    if (students.length === 0 || agialClasses.length === 0) {
+      toast({
+        title: "لا توجد بيانات للمزامنة",
+        description: "ارفع الملف وأكمل استخراج الصفوف والطلاب أولاً.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setIsSyncingAgial(true);
+    try {
+      await apiRequest("PUT", "/api/dashboard/records", {
+        teacherName: agialTeacherName,
+        directorate: agialDirectorate,
+        school: agialSchool,
+        town: agialTown,
+        isHomeroom: agialIsHomeroom,
+        homeroomClass: agialHomeroomClass,
+        students,
+        classes: agialClasses,
+        source: "combined-settings-agial",
+      });
+      toast({
+        title: "تمت المزامنة",
+        description: "تم إرسال بيانات أجيال إلى لوحة التحكم.",
+        variant: "success",
+      });
+    } catch (err: any) {
+      toast({
+        title: "تعذر المزامنة",
+        description: String(err?.message ?? "حدث خطأ غير متوقع"),
+        variant: "destructive",
+      });
+    } finally {
+      setIsSyncingAgial(false);
+    }
+  };
+
   const handleAgialReset = () => {
     setAgialFile(null);
     setAgialTeacherName("");
@@ -285,6 +356,85 @@ export default function CombinedSettings() {
       description: "تم حفظ تجهيزات النموذج الثاني",
       variant: "success",
     });
+  };
+
+  const handleElSyncToDashboard = async () => {
+    if (isSyncingEl) return;
+    const students = (elParsedData?.students ?? []).map((student: any) => {
+      const primary = typeof student?.nationalId === "string" ? student.nationalId.trim() : "";
+      if (primary) return { ...student, nationalId: primary };
+
+      const altKeys = [
+        "idNumber",
+        "nationalID",
+        "national_id",
+        "proofNumber",
+        "proofNo",
+        "identityNumber",
+        "idNo",
+      ];
+      for (const key of altKeys) {
+        const value = student?.[key];
+        if (value == null) continue;
+        const normalized = String(value).trim();
+        if (normalized) return { ...student, nationalId: normalized };
+      }
+
+      const idValue = typeof student?.id === "string" ? student.id.trim() : "";
+      if (idValue && !/^student-|^sheet-/.test(idValue)) {
+        return { ...student, nationalId: idValue };
+      }
+
+      return student;
+    });
+    const schoolInfoRaw: any = elParsedData?.schoolInfo;
+    const safeSchoolInfo =
+      schoolInfoRaw &&
+      typeof schoolInfoRaw?.directorate === "string" &&
+      typeof schoolInfoRaw?.school === "string" &&
+      typeof schoolInfoRaw?.program === "string"
+        ? {
+            directorate: schoolInfoRaw.directorate.trim(),
+            school: schoolInfoRaw.school.trim(),
+            program: schoolInfoRaw.program.trim(),
+          }
+        : undefined;
+    if (students.length === 0 || elClasses.length === 0) {
+      toast({
+        title: "لا توجد بيانات للمزامنة",
+        description: "ارفع الملف وأكمل استخراج الصفوف والطلاب أولاً.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setIsSyncingEl(true);
+    try {
+      await apiRequest("PUT", "/api/dashboard/records", {
+        teacherName: elTeacherName,
+        directorate: elDirectorate,
+        school: elSchool,
+        town: elTown,
+        isHomeroom: elIsHomeroom,
+        homeroomClass: elHomeroomClass,
+        ...(safeSchoolInfo ? { schoolInfo: safeSchoolInfo } : {}),
+        students,
+        classes: elClasses,
+        source: "combined-settings-el",
+      });
+      toast({
+        title: "تمت المزامنة",
+        description: "تم إرسال بيانات النموذج الثاني إلى لوحة التحكم.",
+        variant: "success",
+      });
+    } catch (err: any) {
+      toast({
+        title: "تعذر المزامنة",
+        description: String(err?.message ?? "حدث خطأ غير متوقع"),
+        variant: "destructive",
+      });
+    } finally {
+      setIsSyncingEl(false);
+    }
   };
 
   const handleElReset = () => {
@@ -537,6 +687,12 @@ export default function CombinedSettings() {
               <Save className="w-4 h-4" />
               حفظ التجهيزات
             </Button>
+            {user ? (
+              <Button variant="secondary" onClick={handleAgialSyncToDashboard} disabled={isSyncingAgial} className="gap-2">
+                {isSyncingAgial ? <Loader2 className="h-4 w-4 animate-spin" /> : <Layers className="w-4 h-4" />}
+                مزامنة إلى الداشبورد
+              </Button>
+            ) : null}
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="outline">
@@ -728,6 +884,12 @@ export default function CombinedSettings() {
               <Save className="w-4 h-4" />
               حفظ التجهيزات
             </Button>
+            {user ? (
+              <Button variant="secondary" onClick={handleElSyncToDashboard} disabled={isSyncingEl} className="gap-2">
+                {isSyncingEl ? <Loader2 className="h-4 w-4 animate-spin" /> : <Layers className="w-4 h-4" />}
+                مزامنة إلى الداشبورد
+              </Button>
+            ) : null}
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="outline">

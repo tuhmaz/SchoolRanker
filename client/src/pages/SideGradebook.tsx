@@ -179,7 +179,7 @@ export default function SideGradebook() {
         </div>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)]">
+      <section className="grid gap-6 lg:grid-cols-1">
         <Card className="border-border/70 shadow-sm">
           <CardHeader className="pb-4">
             <CardTitle className="text-xl">تصدير وطباعة</CardTitle>
@@ -262,12 +262,18 @@ export default function SideGradebook() {
                       </div>
                       <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
                         {[
-                          "التقويم الأول",
-                          "التقويم الثاني",
-                          "التقويم الثالث",
-                          "الاختبار النهائي",
-                          "المجموع",
-                          "المعدل",
+                          "الفصل الأول: التقويم الأول",
+                          "الفصل الأول: التقويم الثاني",
+                          "الفصل الأول: التقويم الثالث",
+                          "الفصل الأول: الاختبار النهائي",
+                          "الفصل الأول: المجموع",
+                          "الفصل الثاني: التقويم الأول",
+                          "الفصل الثاني: التقويم الثاني",
+                          "الفصل الثاني: التقويم الثالث",
+                          "الفصل الثاني: الاختبار النهائي",
+                          "الفصل الثاني: المجموع",
+                          "النتيجة السنوية: المعدل",
+                          "ملحوظات",
                         ].map((label) => (
                           <div key={label} className="flex items-center justify-between gap-2 rounded-md bg-background px-2 py-1 dark:bg-muted/20">
                             <span>{label}</span>
@@ -279,11 +285,36 @@ export default function SideGradebook() {
                   ))}
                 </div>
                 <div className="hidden overflow-auto sm:block">
-                  <table className="w-full min-w-[720px] border-collapse text-sm" style={{ direction: "rtl" }}>
+                  <table className="w-full min-w-[1280px] border-collapse text-sm" style={{ direction: "rtl" }}>
                     <thead className="bg-muted/30 text-xs uppercase tracking-wide text-muted-foreground dark:bg-muted/20 dark:text-muted-foreground">
                       <tr>
-                        <th className="border border-border/70 px-3 py-2">م</th>
-                        <th className="border border-border/70 px-3 py-2 text-right">اسم الطالب</th>
+                        <th className="border border-border/70 px-3 py-2" rowSpan={2}>
+                          م
+                        </th>
+                        <th className="border border-border/70 px-3 py-2 text-right" rowSpan={2}>
+                          اسم الطالب
+                        </th>
+                        <th className="border border-border/70 px-3 py-2">أ</th>
+                        <th className="border border-border/70 px-3 py-2">ب</th>
+                        <th className="border border-border/70 px-3 py-2">جـ</th>
+                        <th className="border border-border/70 px-3 py-2">د</th>
+                        <th className="border border-border/70 px-3 py-2">هـ</th>
+                        <th className="border border-border/70 px-3 py-2">و</th>
+                        <th className="border border-border/70 px-3 py-2">ز</th>
+                        <th className="border border-border/70 px-3 py-2">حـ</th>
+                        <th className="border border-border/70 px-3 py-2">ط</th>
+                        <th className="border border-border/70 px-3 py-2">ي</th>
+                        <th className="border border-border/70 px-3 py-2">النتيجة السنوية</th>
+                        <th className="border border-border/70 px-3 py-2" rowSpan={2}>
+                          ملحوظات
+                        </th>
+                      </tr>
+                      <tr>
+                        <th className="border border-border/70 px-3 py-2">التقويم الأول</th>
+                        <th className="border border-border/70 px-3 py-2">التقويم الثاني</th>
+                        <th className="border border-border/70 px-3 py-2">التقويم الثالث</th>
+                        <th className="border border-border/70 px-3 py-2">الاختبار النهائي</th>
+                        <th className="border border-border/70 px-3 py-2">المجموع</th>
                         <th className="border border-border/70 px-3 py-2">التقويم الأول</th>
                         <th className="border border-border/70 px-3 py-2">التقويم الثاني</th>
                         <th className="border border-border/70 px-3 py-2">التقويم الثالث</th>
@@ -299,12 +330,11 @@ export default function SideGradebook() {
                             {i + 1}
                           </td>
                           <td className="border border-border/60 px-3 py-2 text-sm font-medium text-foreground">{s.name}</td>
-                          <td className="border border-border/60 px-3 py-2 text-center text-xs text-muted-foreground">—</td>
-                          <td className="border border-border/60 px-3 py-2 text-center text-xs text-muted-foreground">—</td>
-                          <td className="border border-border/60 px-3 py-2 text-center text-xs text-muted-foreground">—</td>
-                          <td className="border border-border/60 px-3 py-2 text-center text-xs text-muted-foreground">—</td>
-                          <td className="border border-border/60 px-3 py-2 text-center text-xs text-muted-foreground">—</td>
-                          <td className="border border-border/60 px-3 py-2 text-center text-xs text-muted-foreground">—</td>
+                          {Array.from({ length: 12 }).map((_, idx) => (
+                            <td key={idx} className="border border-border/60 px-3 py-2 text-center text-xs text-muted-foreground">
+                              —
+                            </td>
+                          ))}
                         </tr>
                       ))}
                     </tbody>
@@ -323,6 +353,3 @@ export default function SideGradebook() {
     </div>
   );
 }
-
-
-

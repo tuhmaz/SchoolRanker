@@ -19,15 +19,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { FileUploadZone } from "@/components/FileUploadZone";
 import { ClassSubjectManager } from "@/components/ClassSubjectManager";
 import { LoadingOverlay } from "@/components/LoadingOverlay";
-import { Save, RefreshCcw, Printer, UploadCloud, Layers, GraduationCap, AlertTriangle, ShieldCheck } from "lucide-react";
+import { Save, RefreshCcw, Printer, UploadCloud, Layers, GraduationCap, AlertTriangle, ShieldCheck, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { parseExcelFile, type ParsedData } from "@/lib/excelParser";
+import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/useAuth";
 
 const STORAGE_KEY = "teacherAgialSettings";
 const LEGACY_STORAGE_KEY = "appSettings";
 
 export default function TeacherAgial() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [file, setFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [teacherName, setTeacherName] = useState("");
@@ -137,6 +140,76 @@ export default function TeacherAgial() {
       description: "تم حفظ بيانات كشف المعلم أجيال لاستخدامها في جميع الصفحات",
       variant: "success",
     });
+  };
+
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleSyncToDashboard = async () => {
+    if (isSyncing) return;
+    const students = (parsedData?.students ?? []).map((student: any) => {
+      const primary = typeof student?.nationalId === "string" ? student.nationalId.trim() : "";
+      if (primary) return { ...student, nationalId: primary };
+
+      const altKeys = [
+        "idNumber",
+        "nationalID",
+        "national_id",
+        "proofNumber",
+        "proofNo",
+        "identityNumber",
+        "idNo",
+      ];
+      for (const key of altKeys) {
+        const value = student?.[key];
+        if (value == null) continue;
+        const normalized = String(value).trim();
+        if (normalized) return { ...student, nationalId: normalized };
+      }
+
+      const idValue = typeof student?.id === "string" ? student.id.trim() : "";
+      if (idValue && !/^student-|^sheet-/.test(idValue)) {
+        return { ...student, nationalId: idValue };
+      }
+
+      return student;
+    });
+    if (students.length === 0 || classes.length === 0) {
+      toast({
+        title: "لا توجد بيانات للمزامنة",
+        description: "ارفع الملف وأكمل استخراج الصفوف والطلاب أولاً.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSyncing(true);
+    try {
+      await apiRequest("PUT", "/api/dashboard/records", {
+        teacherName,
+        directorate,
+        school,
+        town,
+        isHomeroom,
+        homeroomClass,
+        schoolInfo: parsedData?.schoolInfo,
+        students,
+        classes,
+        source: "teacher-agial",
+      });
+      toast({
+        title: "تمت المزامنة",
+        description: "تم إرسال كشف المعلم إلى لوحة التحكم.",
+        variant: "success",
+      });
+    } catch (err: any) {
+      toast({
+        title: "تعذر المزامنة",
+        description: String(err?.message ?? "حدث خطأ غير متوقع"),
+        variant: "destructive",
+      });
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const handleResetConfirmed = () => {
@@ -341,6 +414,12 @@ export default function TeacherAgial() {
           <Save className="w-4 h-4" />
           حفظ التجهيزات
         </Button>
+        {user ? (
+          <Button variant="secondary" onClick={handleSyncToDashboard} disabled={isSyncing} className="gap-2">
+            {isSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Layers className="w-4 h-4" />}
+            مزامنة إلى الداشبورد
+          </Button>
+        ) : null}
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button variant="outline">

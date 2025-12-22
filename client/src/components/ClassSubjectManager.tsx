@@ -3,7 +3,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ChevronDown, Plus, X, Users } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { ChevronDown, Plus, Trash2, X, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Subject {
@@ -29,6 +40,8 @@ interface ClassSubjectManagerProps {
   students?: any[];
 }
 
+const normalizeText = (value: string) => value.trim();
+
 export function ClassSubjectManager({ classes, onUpdate, students = [] }: ClassSubjectManagerProps) {
   const [expandedClasses, setExpandedClasses] = useState<Record<string, boolean>>({});
 
@@ -47,6 +60,11 @@ export function ClassSubjectManager({ classes, onUpdate, students = [] }: ClassS
       ...previous,
       [className]: !previous[className],
     }));
+  };
+
+  const handleRemoveClass = (className: string) => {
+    const normalizedClass = normalizeText(className);
+    onUpdate(classes.filter((group) => normalizeText(group.className) !== normalizedClass));
   };
 
   const handleAddSubject = (classIdx: number, divIdx: number) => {
@@ -97,22 +115,45 @@ export function ClassSubjectManager({ classes, onUpdate, students = [] }: ClassS
         return (
           <Card key={classGroup.className} className="border-border/60 shadow-sm">
             <CardHeader className="py-3">
-              <button
-                type="button"
-                onClick={() => toggleClassSection(classGroup.className)}
-                className="flex w-full items-center justify-between gap-3 text-right"
-              >
-                <div>
-                  <CardTitle className="text-lg">الصف: {classGroup.className}</CardTitle>
-                  <p className="mt-1 text-xs text-muted-foreground">{classGroup.divisions.length} شعبة · {totalStudents} طالب/ة</p>
-                </div>
-                <ChevronDown
-                  className={cn(
-                    "h-4 w-4 transition-transform duration-200",
-                    isExpanded ? "-rotate-180" : "rotate-0",
-                  )}
-                />
-              </button>
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => toggleClassSection(classGroup.className)}
+                  className="flex flex-1 items-center justify-between gap-3 text-right"
+                >
+                  <div>
+                    <CardTitle className="text-lg">الصف: {classGroup.className}</CardTitle>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {classGroup.divisions.length} شعبة · {totalStudents} طالب/ة
+                    </p>
+                  </div>
+                  <ChevronDown
+                    className={cn(
+                      "h-4 w-4 transition-transform duration-200",
+                      isExpanded ? "-rotate-180" : "rotate-0",
+                    )}
+                  />
+                </button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="icon" aria-label={`حذف الصف ${classGroup.className}`}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent dir="rtl">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>حذف الصف</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        سيتم حذف الصف "{classGroup.className}" مع الشعب والمواد التابعة له من قائمة الصفوف والمواد. لن يتم حذف الطلاب.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => handleRemoveClass(classGroup.className)}>حذف</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
             </CardHeader>
             {isExpanded ? (
               <CardContent className="space-y-4">

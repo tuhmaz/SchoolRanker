@@ -87,6 +87,18 @@ function getMetaForPath(pathname: string, isNotFound?: boolean): MetaConfig {
         "دفتر موازٍ",
       ],
     },
+    "/dashboard/side-gradebook": {
+      title: "دفتر العلامات الجانبي (حسابي) - خدمتك",
+      description: "إدارة دفتر العلامات الجانبي مع حفظ التقويمات داخل حسابك.",
+      robots: "noindex, follow",
+      keywords: ["دفتر العلامات الجانبي", "حساب", "تسجيل الدخول"],
+    },
+    "/dashboard/performance": {
+      title: "سجل الأداء والملاحظات (حسابي) - خدمتك",
+      description: "إدارة سجل الأداء والملاحظات مع حفظ الأرشيف داخل حسابك.",
+      robots: "noindex, follow",
+      keywords: ["سجل أداء", "ملاحظات المعلم", "أرشيف", "حساب"],
+    },
     "/performance": {
       title: "تقارير الأداء الأكاديمي - خدمتك",
       description: "تحليل أداء الطلبة وإعداد تقارير مفصلة وفق المعايير الأكاديمية.",

@@ -1,4 +1,4 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useEffect, useRef, useState, type ComponentType } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -11,6 +11,7 @@ import { StructuredData } from "@/components/StructuredData";
 import { Logo } from "@/components/Logo";
 import { Canonical } from "@/components/Canonical";
 import { MetaTags } from "./components/MetaTags";
+import { useAuth } from "@/hooks/useAuth";
 import Home from "@/pages/Home";
 const CombinedSettings = lazy(() => import("@/pages/CombinedSettings"));
 const TeacherAgial = lazy(() => import("@/pages/TeacherAgial"));
@@ -26,7 +27,66 @@ const About = lazy(() => import("@/pages/About"));
 const Privacy = lazy(() => import("@/pages/Privacy"));
 const GradebookAnalyzer = lazy(() => import("@/pages/GradebookAnalyzer"));
 const Tutorials = lazy(() => import("@/pages/Tutorials"));
+const Login = lazy(() => import("@/pages/Login"));
+const Register = lazy(() => import("@/pages/Register"));
+const Dashboard = lazy(() => import("@/pages/Dashboard"));
+const AdminUsers = lazy(() => import("@/pages/AdminUsers"));
+const DashboardExports = lazy(() => import("@/pages/DashboardExports"));
+const DashboardRecords = lazy(() => import("@/pages/DashboardRecords"));
+const DashboardSideGradebook = lazy(() => import("@/pages/DashboardSideGradebook"));
+const DashboardPerformance = lazy(() => import("@/pages/DashboardPerformance"));
+const DashboardMainGradebook = lazy(() => import("./pages/DashboardMainGradebook"));
 const NotFound = lazy(() => import("@/pages/not-found"));
+
+function withAdmin(Component: ComponentType<any>) {
+  return function WithAdmin(props: any) {
+    const { user, isLoading } = useAuth();
+    const [, setLocation] = useLocation();
+
+    useEffect(() => {
+      if (!isLoading && !user) setLocation("/login");
+    }, [isLoading, user, setLocation]);
+
+    if (isLoading) {
+      return <div className="p-6 text-center text-muted-foreground">جارٍ التحقق من الحساب...</div>;
+    }
+
+    if (!user) return null;
+    if (user.role !== "admin") {
+      return <div className="p-6 text-center text-muted-foreground">غير مصرح</div>;
+    }
+
+    return <Component {...props} />;
+  };
+}
+
+function withAuth(Component: ComponentType<any>) {
+  return function WithAuth(props: any) {
+    const { user, isLoading } = useAuth();
+    const [, setLocation] = useLocation();
+
+    useEffect(() => {
+      if (!isLoading && !user) setLocation("/login");
+    }, [isLoading, user, setLocation]);
+
+    if (isLoading) {
+      return <div className="p-6 text-center text-muted-foreground">جارٍ التحقق من الحساب...</div>;
+    }
+
+    if (!user) return null;
+    return <Component {...props} />;
+  };
+}
+
+const ProtectedDashboard = withAuth(Dashboard);
+const ProtectedAdminUsers = withAdmin(AdminUsers);
+const ProtectedDashboardExports = withAuth(DashboardExports);
+const ProtectedDashboardRecords = withAuth(DashboardRecords);
+const ProtectedDashboardSideGradebook = withAuth(DashboardSideGradebook);
+const ProtectedDashboardMainGradebook = withAuth(DashboardMainGradebook);
+const ProtectedDashboardAttendance = withAuth(Attendance);
+const ProtectedDashboardLessonAttendance = withAuth(LessonAttendance);
+const ProtectedDashboardPerformance = withAuth(DashboardPerformance);
 
 function Router({ isNotFound }: { isNotFound: boolean }) {
   if (isNotFound) {
@@ -36,6 +96,18 @@ function Router({ isNotFound }: { isNotFound: boolean }) {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/login" component={Login} />
+      <Route path="/register" component={Register} />
+      <Route path="/dashboard/admin/users" component={ProtectedAdminUsers} />
+      <Route path="/dashboard/exports" component={ProtectedDashboardExports} />
+      <Route path="/dashboard/records" component={ProtectedDashboardRecords} />
+      <Route path="/dashboard/side-gradebook" component={ProtectedDashboardSideGradebook} />
+      <Route path="/dashboard/main-gradebook" component={ProtectedDashboardMainGradebook} />
+      <Route path="/dashboard/attendance" component={ProtectedDashboardAttendance} />
+      <Route path="/dashboard/lesson-attendance" component={ProtectedDashboardLessonAttendance} />
+      <Route path="/dashboard/performance" component={ProtectedDashboardPerformance} />
+      <Route path="/dashboard/admin" component={ProtectedDashboard} />
+      <Route path="/dashboard" component={ProtectedDashboard} />
       <Route path="/settings" component={CombinedSettings} />
       <Route path="/teacher-agial" component={TeacherAgial} />
       <Route path="/side-gradebook" component={SideGradebook} />
@@ -62,10 +134,39 @@ function App() {
   };
 
   const [location] = useLocation();
+  const isDashboardRoute = location.startsWith("/dashboard");
+  const [sidebarOpen, setSidebarOpen] = useState(() => !isDashboardRoute);
+  const lastNonDashboardOpenRef = useRef(true);
+
+  useEffect(() => {
+    if (!isDashboardRoute) {
+      lastNonDashboardOpenRef.current = sidebarOpen;
+    }
+  }, [isDashboardRoute, sidebarOpen]);
+
+  useEffect(() => {
+    if (isDashboardRoute) {
+      setSidebarOpen(false);
+    } else {
+      setSidebarOpen(lastNonDashboardOpenRef.current);
+    }
+  }, [isDashboardRoute]);
 
   // Define valid routes
   const validRoutes = [
     "/",
+    "/login",
+    "/register",
+    "/dashboard",
+    "/dashboard/admin",
+    "/dashboard/exports",
+    "/dashboard/records",
+    "/dashboard/side-gradebook",
+    "/dashboard/main-gradebook",
+    "/dashboard/attendance",
+    "/dashboard/lesson-attendance",
+    "/dashboard/performance",
+    "/dashboard/admin/users",
     "/settings",
     "/teacher-agial",
     "/side-gradebook",
@@ -155,6 +256,23 @@ function App() {
     );
   }
 
+  const isAuthRoute = location === "/login" || location === "/register";
+
+  if (isAuthRoute) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <MetaTags />
+          <Canonical />
+          <Suspense fallback={<div className="p-6 text-center text-muted-foreground">جارٍ التحميل...</div>}>
+            <Router isNotFound={false} />
+          </Suspense>
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
@@ -164,7 +282,7 @@ function App() {
         <StructuredData type="Organization" />
         <StructuredData type="WebApplication" />
         <StructuredData type="FAQPage" data={faqData} />
-        <SidebarProvider style={style as React.CSSProperties}>
+        <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen} style={style as React.CSSProperties}>
           <div className="flex h-screen w-full">
             <AppSidebar />
             <div className="flex flex-col flex-1 overflow-hidden">
@@ -179,7 +297,7 @@ function App() {
               <main className="flex-1 overflow-y-auto p-6 bg-background">
                 <div className="flex gap-6 w-full">
                   <div className="flex-1">
-                    <div className="max-w-4xl mx-auto">
+                    <div className={isDashboardRoute ? "w-full" : "max-w-4xl mx-auto"}>
                       <Suspense fallback={<div className="p-6 text-center text-muted-foreground">جارٍ التحميل...</div>}>
                         <Router isNotFound={false} />
                       </Suspense>

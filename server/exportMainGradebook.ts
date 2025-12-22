@@ -41,6 +41,36 @@ export interface MainGradebookPayload {
   templatePreference?: "lower" | "upper";
   classes: ClassRecord[];
   students: StudentRecord[];
+  gradebook?: {
+    byGroup?: Record<
+      string,
+      {
+        className?: string;
+        division?: string;
+        subject?: string;
+        gradesByStudentId?: Record<
+          string,
+          {
+            t1Eval1?: number | null;
+            t1Eval2?: number | null;
+            t1Eval3?: number | null;
+            t1Eval4?: number | null;
+            t1Note?: string | null;
+            t2Eval1?: number | null;
+            t2Eval2?: number | null;
+            t2Eval3?: number | null;
+            t2Eval4?: number | null;
+            completion?: number | null;
+            note?: string | null;
+            eval1?: number | null;
+            eval2?: number | null;
+            eval3?: number | null;
+            final?: number | null;
+          }
+        >;
+      }
+    >;
+  };
 }
 
 interface WorksheetPosition {
@@ -274,6 +304,32 @@ const setCellPreserveStyle = (sheet: ExcelJS.Worksheet, addr: string | [number, 
   if (prevAlignment) cell.alignment = prevAlignment;
   if (prevBorder) cell.border = prevBorder;
   if (prevFill) cell.fill = prevFill as ExcelJS.Fill;
+};
+
+const normalizeKeyPart = (value: unknown, fallback: string) => {
+  const text = value != null ? String(value).trim() : "";
+  return text.length > 0 ? text : fallback;
+};
+
+const buildGroupKey = (className: unknown, division: unknown, subject: unknown) =>
+  `${normalizeKeyPart(className, "غير محدد")}|||${normalizeKeyPart(division, "بدون شعبة")}|||${normalizeKeyPart(subject, "غير محدد")}`;
+
+const coerceMark = (value: unknown): number | null => {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  const clamped = Math.max(0, Math.min(100, value));
+  return clamped;
+};
+
+const shouldOverwriteComputedCell = (cell: ExcelJS.Cell): boolean => {
+  const value = cell.value as ExcelJS.CellValue | undefined;
+  if (value == null) return true;
+  if (typeof value === "object") {
+    const anyValue = value as any;
+    const formula = typeof anyValue.formula === "string" ? anyValue.formula : typeof anyValue.sharedFormula === "string" ? anyValue.sharedFormula : "";
+    if (formula.includes("#REF!")) return true;
+    return false;
+  }
+  return true;
 };
 
 // دالة شاملة: نسخ جميع إعدادات القالب إلى الملف الناتج
@@ -529,9 +585,10 @@ export async function generateMainGradebook(payload: MainGradebookPayload): Prom
     throw new Error("تعذر قراءة ورقة العمل الرئيسية من القالب");
   }
 
-  const headerSheets = [workbook.worksheets[1], workbook.worksheets[2]];
   const SUBJECT_LABEL_COLUMN = 12; // Column "L"
   const SUBJECT_VALUE_COLUMN = 15; // Column "O" adjacent to merged label area
+  const term1Columns = { e1: "D", e2: "E", e3: "F", e4: "G", result: "H" };
+  const term2Columns = { e1: "L", e2: "M", e3: "N", e4: "O", result: "P", annual: "Q", completion: "R" };
 
   const studentsByClassDivision = new Map<string, StudentRecord[]>();
   students
@@ -630,11 +687,13 @@ export async function generateMainGradebook(payload: MainGradebookPayload): Prom
         continue;
       }
 
-      const studentNames = classStudents.map((student) => student.name).filter((name): name is string => !!name);
-
       for (const subjectName of subjects) {
 
-        let remainingStudents = [...studentNames];
+        const groupKey = buildGroupKey(group.className, division.division, subjectName);
+        const groupEntry = payload.gradebook?.byGroup?.[groupKey];
+        const gradesByStudentId = groupEntry?.gradesByStudentId ?? {};
+
+        let remainingStudents = [...classStudents];
         let studentIndex = 0;
 
         while (remainingStudents.length > 0) {
@@ -662,9 +721,54 @@ export async function generateMainGradebook(payload: MainGradebookPayload): Prom
           const studentsForPage = remainingStudents.splice(0, 25);
           const studentStartRow = headerRow + 5;
 
-          studentsForPage.forEach((name, index) => {
+          studentsForPage.forEach((student, index) => {
+            const name = student.name;
+            const studentId = student.id;
+            const row = studentStartRow + index;
             setCellPreserveStyle(sheet, `A${studentStartRow + index}`, studentIndex + index + 1);
             setCellPreserveStyle(sheet, `B${studentStartRow + index}`, name);
+
+            if (studentId) {
+              const grades = gradesByStudentId[studentId] ?? {};
+              const t1Eval1 = coerceMark((grades as any).t1Eval1);
+              const t1Eval2 = coerceMark((grades as any).t1Eval2);
+              const t1Eval3 = coerceMark((grades as any).t1Eval3);
+              const t1Eval4 = coerceMark((grades as any).t1Eval4);
+              const t2Eval1 = coerceMark((grades as any).t2Eval1 ?? (grades as any).eval1);
+              const t2Eval2 = coerceMark((grades as any).t2Eval2 ?? (grades as any).eval2);
+              const t2Eval3 = coerceMark((grades as any).t2Eval3 ?? (grades as any).eval3);
+              const t2Eval4 = coerceMark((grades as any).t2Eval4 ?? (grades as any).final);
+              const completion = coerceMark((grades as any).completion);
+
+              if (t1Eval1 != null) setCellPreserveStyle(sheet, `${term1Columns.e1}${row}`, t1Eval1);
+              if (t1Eval2 != null) setCellPreserveStyle(sheet, `${term1Columns.e2}${row}`, t1Eval2);
+              if (t1Eval3 != null) setCellPreserveStyle(sheet, `${term1Columns.e3}${row}`, t1Eval3);
+              if (t1Eval4 != null) setCellPreserveStyle(sheet, `${term1Columns.e4}${row}`, t1Eval4);
+              if (t2Eval1 != null) setCellPreserveStyle(sheet, `${term2Columns.e1}${row}`, t2Eval1);
+              if (t2Eval2 != null) setCellPreserveStyle(sheet, `${term2Columns.e2}${row}`, t2Eval2);
+              if (t2Eval3 != null) setCellPreserveStyle(sheet, `${term2Columns.e3}${row}`, t2Eval3);
+              if (t2Eval4 != null) setCellPreserveStyle(sheet, `${term2Columns.e4}${row}`, t2Eval4);
+              if (completion != null) setCellPreserveStyle(sheet, `${term2Columns.completion}${row}`, completion);
+
+              const t1All = [t1Eval1, t1Eval2, t1Eval3, t1Eval4];
+              const t2All = [t2Eval1, t2Eval2, t2Eval3, t2Eval4];
+              const t1Result = t1All.every((v) => typeof v === "number") ? coerceMark(t1All.reduce((acc, v) => acc + (v ?? 0), 0)) : null;
+              const t2Result = t2All.every((v) => typeof v === "number") ? coerceMark(t2All.reduce((acc, v) => acc + (v ?? 0), 0)) : null;
+              const annual = t1Result != null && t2Result != null ? coerceMark(Math.round((t1Result + t2Result) / 2)) : null;
+
+              if (t1Result != null) {
+                const cell = sheet.getCell(`${term1Columns.result}${row}`);
+                if (shouldOverwriteComputedCell(cell)) setCellPreserveStyle(sheet, cell.address, t1Result);
+              }
+              if (t2Result != null) {
+                const cell = sheet.getCell(`${term2Columns.result}${row}`);
+                if (shouldOverwriteComputedCell(cell)) setCellPreserveStyle(sheet, cell.address, t2Result);
+              }
+              if (annual != null) {
+                const cell = sheet.getCell(`${term2Columns.annual}${row}`);
+                if (shouldOverwriteComputedCell(cell)) setCellPreserveStyle(sheet, cell.address, annual);
+              }
+            }
           });
 
           studentIndex += studentsForPage.length;
