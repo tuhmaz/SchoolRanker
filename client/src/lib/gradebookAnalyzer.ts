@@ -65,11 +65,11 @@ type LabelMatcher = {
 };
 
 const INFO_LABELS: LabelMatcher[] = [
-  { key: "directorate", regex: /مديرية/ },
+  { key: "directorate", regex: /مديرية\s*التربية\s*والتعليم|مديرية/ },
   { key: "town", regex: /البلدة/ },
   { key: "school", regex: /المدرسة/ },
   { key: "district", regex: /اللواء/ },
-  { key: "grade", regex: /^الصف[:\s]*$/ },
+  { key: "grade", regex: /الصف[:\s]*/ },
   { key: "division", regex: /الشعبة/ },
   { key: "program", regex: /(البرنامج|المرحلة|المسار)/ },
 ];
@@ -127,9 +127,55 @@ function findAdjacentValue(row: any[], index: number): string {
   return "";
 }
 
+function extractValueFromCell(cell: string, key: InfoKey): string {
+  const normalized = normalizeCell(cell);
+
+  // استخراج القيمة من نفس الخلية إذا كانت تحتوي على "المفتاح: القيمة"
+  if (key === "directorate") {
+    const match = normalized.match(/مديرية\s*(?:التربية\s*والتعليم)?\s*:\s*(.+?)(?:\s{2,}|$)/);
+    if (match) return match[1].trim();
+  }
+
+  if (key === "town") {
+    const match = normalized.match(/البلدة\s*:\s*(.+?)(?:\s{2,}|المدرسة|$)/);
+    if (match) return match[1].trim();
+  }
+
+  if (key === "school") {
+    const match = normalized.match(/المدرسة\s*:\s*(.+?)(?:\s*-\s*\d+)?$/);
+    if (match) return match[1].trim();
+  }
+
+  if (key === "district") {
+    const match = normalized.match(/اللواء\s*:\s*(.+?)(?:\s{2,}|الشعبة|$)/);
+    if (match) return match[1].trim();
+  }
+
+  if (key === "division") {
+    const match = normalized.match(/الشعبة\s*:\s*(.+?)$/);
+    if (match) return match[1].trim();
+  }
+
+  if (key === "grade") {
+    const match = normalized.match(/(?:للصف|الصف)\s*:\s*(.+?)(?:\s|$)/);
+    if (match) return match[1].trim();
+  }
+
+  return "";
+}
+
 function extractInfo(rows: any[][]): GradebookAnalysis["info"] {
   const info: GradebookAnalysis["info"] = {};
   const searchRows = rows.slice(0, 20);
+
+  // محاولة استخراج الصف من العنوان (Row 0)
+  if (rows[0] && rows[0][0]) {
+    const titleCell = normalizeCell(rows[0][0]);
+    const gradeMatch = titleCell.match(/للصف\s+(.+?)\s+للعام/);
+    if (gradeMatch && !info.grade) {
+      info.grade = gradeMatch[1].trim();
+    }
+  }
 
   for (const row of searchRows) {
     for (let col = 0; col < row.length; col++) {
@@ -138,12 +184,19 @@ function extractInfo(rows: any[][]): GradebookAnalysis["info"] {
 
       for (const matcher of INFO_LABELS) {
         if (matcher.regex.test(cell) && info[matcher.key] == null) {
-          const value = findAdjacentValue(row, col);
-          if (value) {
-            if (matcher.key === "division") {
-              info[matcher.key] = value.replace(/^\(|\)$/g, "");
-            } else {
-              info[matcher.key] = value;
+          // أولاً: محاولة استخراج القيمة من نفس الخلية
+          const valueFromSameCell = extractValueFromCell(cell, matcher.key);
+          if (valueFromSameCell) {
+            info[matcher.key] = valueFromSameCell;
+          } else {
+            // ثانياً: البحث عن القيمة في الخلايا المجاورة
+            const value = findAdjacentValue(row, col);
+            if (value) {
+              if (matcher.key === "division") {
+                info[matcher.key] = value.replace(/^\(|\)$/g, "");
+              } else {
+                info[matcher.key] = value;
+              }
             }
           }
         }

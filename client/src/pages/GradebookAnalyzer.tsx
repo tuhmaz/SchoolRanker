@@ -131,6 +131,8 @@ type CertificateExportPayload = {
 };
 
 type CertificateOptionalFields = {
+  grade?: string;
+  division?: string;
   defaultReligion?: string;
   completionExamStartDay?: string;
   completionExamStartDate?: string;
@@ -274,8 +276,8 @@ const buildCertificatePayload = (
     schoolPhone: sanitizeValue(settings?.schoolPhone) ?? sanitizeValue(settings?.schoolInfo?.phone),
     schoolNationalId:
       sanitizeValue(settings?.schoolNationalId) ?? sanitizeValue(settings?.schoolInfo?.nationalId),
-    grade: sanitizeValue(analysis.info.grade),
-    division: sanitizeValue(analysis.info.division),
+    grade: sanitizeValue(analysis.info.grade) ?? sanitizeValue(settings?.grade),
+    division: sanitizeValue(analysis.info.division) ?? sanitizeValue(settings?.division),
     academicYear:
       sanitizeValue(settings?.academicYear)
         ?? sanitizeValue(settings?.year),
@@ -806,6 +808,37 @@ export default function GradebookAnalyzerPage() {
               </CardHeader>
               <CollapsibleContent className="data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
                 <CardContent className="space-y-6 pt-0">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="grade-override">الصف (اختياري)</Label>
+                      <Input
+                        id="grade-override"
+                        value={certificateOptions.grade ?? ""}
+                        onChange={handleCertificateOptionInput("grade")}
+                        placeholder="مثال: السادس"
+                        className={getOptionalInputClasses(certificateOptions.grade)}
+                        data-testid="input-grade-override"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        إذا لم يكن الصف موجوداً في الملف المرفوع، أدخله هنا ليظهر في الشهادات.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="division-override">الشعبة (اختياري)</Label>
+                      <Input
+                        id="division-override"
+                        value={certificateOptions.division ?? ""}
+                        onChange={handleCertificateOptionInput("division")}
+                        placeholder="مثال: أ"
+                        className={getOptionalInputClasses(certificateOptions.division)}
+                        data-testid="input-division-override"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        إذا لم تكن الشعبة موجودة في الملف المرفوع، أدخلها هنا لتظهر في الشهادات.
+                      </p>
+                    </div>
+                  </div>
+
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="default-religion">الديانة الافتراضية</Label>
