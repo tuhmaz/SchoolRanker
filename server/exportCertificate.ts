@@ -551,12 +551,6 @@ const populateSubjects = (
       continue;
     }
 
-    // كتابة اسم المادة من السجل المرفوع في الخلية B (عمود الأسماء في القالب)
-    const subjectName = normalizeText(subject.name);
-    if (subjectName) {
-      setCellPreserveStyle(sheet, `B${row}`, subjectName);
-    }
-
     const maxScoreText = normalizeText(subject.maxScore);
     let minScoreText = normalizeText(subject.minScore);
     if (!minScoreText && maxScoreText) {
